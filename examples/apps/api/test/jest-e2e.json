@@ -1,0 +1,13 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "..",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "@modules/auth": "<rootDir>/../../packages/modules/auth-module/src",
+    "@modules/user": "<rootDir>/../../packages/modules/user-module/src"
+  }
+}

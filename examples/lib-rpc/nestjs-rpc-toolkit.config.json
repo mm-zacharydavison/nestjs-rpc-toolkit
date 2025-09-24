@@ -1,0 +1,7 @@
+{
+  "packages": [
+    "examples/modules/user-module",
+    "examples/modules/auth-module"
+  ],
+  "outputDir": "examples/lib-rpc/src"
+}

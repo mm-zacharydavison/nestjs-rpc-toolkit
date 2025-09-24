@@ -1,0 +1,18 @@
+{
+  "name": "@zdavison/nestjs-rpc-toolkit-monorepo",
+  "version": "1.0.0",
+  "description": "NestJS RPC toolkit monorepo with library and example applications",
+  "private": true,
+  "packageManager": "pnpm@10.10.0",
+  "scripts": {
+    "build": "turbo build",
+    "dev": "pnpm --filter api run start:dev",
+    "clean": "pnpm --filter '*' run clean",
+    "generate-rpc": "pnpm --filter lib-rpc run generate:types"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "turbo": "^2.0.0"
+  }
+}
