@@ -4,91 +4,88 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is `@zdavison/nestjs-rpc-toolkit`, a TypeScript library for type-safe RPC calls in NestJS monorepos. The toolkit provides decorators, type generation, and transport mechanisms for inter-service communication.
+This is a NestJS RPC Toolkit monorepo that provides type-safe RPC calls between NestJS microservices. The toolkit includes:
 
-## Development Commands
-
-### Building and Development
-- `npm run build` or `tsc` - Build the TypeScript to dist/
-- `npm run dev` or `tsc --watch` - Build in watch mode
-- `npm run clean` - Remove dist/ directory
-
-### Examples and Testing
-The `examples/` directory contains a complete monorepo setup for testing:
-- `cd examples && pnpm build` - Build all example packages
-- `cd examples && pnpm dev` - Start the example API in dev mode
-- `cd examples && pnpm generate-rpc` - Generate RPC types for examples
-
-### Type Checking
-Run `tsc --noEmit` to type-check without building (no dedicated npm script exists).
+- **Core Library** (`packages/nestjs-rpc-toolkit`): Decorators, generators, and transport mechanisms for RPC
+- **Generated Types Library** (`examples/lib-rpc`): Auto-generated TypeScript types and client interfaces
+- **Example Applications** (`examples/apps/api`): Main API application composing microservice modules
+- **Example Modules** (`examples/modules/*`): Microservice modules (auth-module, user-module)
 
 ## Architecture
 
-### Core Components
+### Core Concepts
 
-1. **Decorators** (`src/decorators/`)
-   - `@RpcController(prefix?)` - Marks classes containing RPC methods, auto-infers module names from class names (UserService → 'user')
-   - `@RpcMethod(pattern?)` - Marks methods as RPC endpoints, generates patterns like 'user.findAll'
+- **@RpcController()**: Marks a service class as an RPC controller, auto-inferring module prefix from class name
+- **@RpcMethod()**: Decorates methods to expose them as RPC endpoints with auto-generated patterns like `user.create`
+- **Type Generation**: Automatically generates TypeScript client interfaces from decorated methods
+- **In-Process Transport**: Uses in-memory communication for modular monolith architecture
+- **Generated Client**: Auto-generated `IRpcClient` interface provides type-safe RPC calls
 
-2. **RPC System** (`src/rpc/`)
-   - `TypedMessageBus<T>` - Type-safe wrapper around NestJS ClientProxy
-   - `RpcClient` - Creates domain proxies for RPC calls
-   - `RpcRegistry` - Method discovery and pattern management
+### RPC Pattern Generation
 
-3. **Type Generation** (`src/generators/`)
-   - `RpcTypesGenerator` - Scans decorated methods and generates TypeScript types
-   - Supports monorepo structure with wildcard package paths (e.g., `packages/modules/*`)
-   - Generates module-specific `.rpc.gen.ts` files and aggregated `all.rpc.gen.ts`
+RPC patterns are automatically generated as `{module}.{methodName}`:
+- `UserService` with `@RpcController()` → module: `user`
+- Method `create()` with `@RpcMethod()` → pattern: `user.create`
+- Custom prefix: `@RpcController('custom')` → pattern: `custom.methodName`
 
-4. **Transport Layer** (`src/transport/`)
-   - In-memory transport for development/testing
-   - TCP transport support for production microservices
+### Type Generation Workflow
 
-### Code Generation Pattern
+1. Modules decorated with `@RpcController` and `@RpcMethod` are scanned
+2. Types are generated using `pnpm generate-rpc`
+3. Generated types go to `examples/lib-rpc/src/`
+4. Applications import `@meetsmore/lib-rpc` for type-safe RPC calls
 
-The toolkit uses a two-phase approach:
-1. **Method Discovery**: Scans for `@RpcMethod` decorators in `@RpcController` classes
-2. **Type Generation**: Creates TypeScript interfaces for type-safe RPC calls
+## Development Commands
 
-Generated types follow pattern: `rpc.domain.method(params)` → `Promise<ReturnType>`
+### Root Level (Monorepo)
+- `pnpm build` - Build all packages using Turbo
+- `pnpm dev` - Start the API application in development mode
+- `pnpm clean` - Clean all package build outputs
+- `pnpm generate-rpc` - Generate RPC types from decorated methods
 
-### Configuration
+### Package Level Commands
+**Main API Application** (`examples/apps/api`):
+- `pnpm start:dev` - Start API server with hot reload
+- `pnpm test:e2e` - Run end-to-end tests
 
-RPC generation requires a `nestjs-rpc-toolkit.config.json`:
-```json
-{
-  "packages": ["packages/modules/*"],  // Supports glob patterns
-  "outputDir": "lib-rpc/src"
-}
-```
+**Modules** (`examples/modules/*`):
+- `pnpm build` - Compile TypeScript
+- `pnpm dev` - Watch mode compilation
+- `pnpm start:microservice` - Run as standalone microservice
 
-## Monorepo Structure
+**Core Library** (`packages/nestjs-rpc-toolkit`):
+- `pnpm build` - Compile library
+- `pnpm dev` - Watch mode compilation
 
-When working with examples or implementing in monorepos:
-- Main toolkit: Root directory (`src/`, `dist/`)
-- Examples: `examples/` directory with separate pnpm workspace
-- Generated types: Typically in `lib-rpc/` or similar package
-- Modules: Individual packages containing `@RpcController` classes
+**Generated Types** (`examples/lib-rpc`):
+- `pnpm generate:types` - Generate types from configured modules
+- `pnpm build` - Build generated types library
 
-## Key Patterns
+## Configuration Files
 
-### RPC Method Definition
-```typescript
-@RpcController('user')  // or @RpcController() for auto-inference
-export class UserService {
-  @RpcMethod()
-  async findOne(params: { id: string }): Promise<User> {
-    // Pattern auto-generated as 'user.findOne'
-  }
-}
-```
+### RPC Type Generation
+- `examples/lib-rpc/nestjs-rpc-toolkit.config.json` - Configures which modules to scan for RPC types
+- Modules listed in `packages` array are scanned for `@RpcController` and `@RpcMethod` decorators
 
-### Type-Safe RPC Calls
-```typescript
-// Generated types enable: rpc.user.findOne({ id: 'user123' })
-const user = await messageBus.send('user.findOne', { id: 'user123' });
-```
+### Workspace Configuration
+- `pnpm-workspace.yaml` - Defines monorepo package structure
+- `turbo.json` - Turbo build pipeline configuration with task dependencies
 
-## Serialization Requirements
+## Key Implementation Details
 
-All RPC parameters and return types must be JSON-serializable for TCP transport compatibility. Avoid functions, class instances, Buffer, Map/Set, undefined values.
+### Adding New RPC Methods
+1. Decorate service class with `@RpcController()`
+2. Decorate methods with `@RpcMethod()`
+3. Run `pnpm generate-rpc` to update types
+4. Import and use type-safe client: `@Inject('RPC') private rpc: IRpcClient`
+
+### Module Structure Pattern
+Each module follows this structure:
+- `src/{module}.service.ts` - RPC service with decorators
+- `src/{module}.controller.ts` - HTTP controller (optional)
+- `src/{module}.module.ts` - NestJS module definition
+- `src/dto/` - Data transfer objects
+- `src/entities/` - Entity definitions
+
+### Transport Configuration
+The toolkit uses `InProcessTransportStrategy` for modular monolith architecture, enabling in-memory RPC calls without network overhead.
