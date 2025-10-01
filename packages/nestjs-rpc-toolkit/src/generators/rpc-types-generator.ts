@@ -21,6 +21,7 @@ interface RpcMethodInfo {
   paramTypes: { name: string; type: string }[];
   returnType: string;
   sourceFile: string;
+  typeParameters?: string[];
 }
 
 interface InterfaceDefinition {
@@ -210,6 +211,8 @@ export class RpcTypesGenerator {
         this.extractInterface(node as any, sourceFile);
       } else if (node.getKind() === ts.SyntaxKind.ClassDeclaration) {
         this.extractClassAsInterface(node as any, sourceFile);
+      } else if (node.getKind() === ts.SyntaxKind.TypeAliasDeclaration) {
+        this.extractTypeAlias(node as any, sourceFile);
       }
     });
   }
@@ -232,6 +235,24 @@ export class RpcTypesGenerator {
     const name = classDeclaration.getName();
     if (!name || !this.isRelevantInterface(name) || this.isInternalType(name)) return;
 
+    // Extract generic type parameters from class
+    const typeParameters = classDeclaration.getTypeParameters();
+    const typeParamsStr = typeParameters.length > 0
+      ? `<${typeParameters.map((tp: any) => {
+          const tpName = tp.getName();
+          const constraint = tp.getConstraint();
+          const defaultType = tp.getDefault();
+          let result = tpName;
+          if (constraint) {
+            result += ` extends ${constraint.getText()}`;
+          }
+          if (defaultType) {
+            result += ` = ${defaultType.getText()}`;
+          }
+          return result;
+        }).join(', ')}>`
+      : '';
+
     // Extract DTO classes as interfaces
     const properties = classDeclaration.getProperties()
       .filter((prop: any) => !prop.hasModifier(ts.SyntaxKind.PrivateKeyword))
@@ -252,9 +273,28 @@ export class RpcTypesGenerator {
       });
 
     if (properties.length > 0) {
-      const source = `export interface ${name} {\n${properties.join('\n')}\n}`;
+      const source = `export interface ${name}${typeParamsStr} {\n${properties.join('\n')}\n}`;
       const moduleName = this.getModuleForFile(sourceFile.getFilePath());
 
+      this.interfaces.set(name, {
+        name,
+        source,
+        module: moduleName
+      });
+    }
+  }
+
+  private extractTypeAlias(typeAliasDeclaration: any, sourceFile: SourceFile): void {
+    const name = typeAliasDeclaration.getName();
+    let source = typeAliasDeclaration.getText();
+    const moduleName = this.getModuleForFile(sourceFile.getFilePath());
+
+    // Ensure the source has export keyword
+    if (!source.startsWith('export ')) {
+      source = `export ${source}`;
+    }
+
+    if (name && this.isRelevantInterface(name) && !this.isInternalType(name)) {
       this.interfaces.set(name, {
         name,
         source,
@@ -360,6 +400,16 @@ export class RpcTypesGenerator {
     // Extract return type
     const returnType = this.cleanReturnType(method.getReturnType().getText());
 
+    // Extract generic type parameters
+    const typeParameters = method.getTypeParameters().map(tp => {
+      const name = tp.getName();
+      const constraint = tp.getConstraint();
+      if (constraint) {
+        return `${name} extends ${constraint.getText()}`;
+      }
+      return name;
+    });
+
     const rpcMethod = {
       pattern,
       methodName,
@@ -367,6 +417,7 @@ export class RpcTypesGenerator {
       paramTypes,
       returnType,
       sourceFile: sourceFile.getFilePath(),
+      typeParameters: typeParameters.length > 0 ? typeParameters : undefined,
     };
 
 
@@ -405,19 +456,44 @@ export class RpcTypesGenerator {
   private generateModuleTypesFile(moduleName: string, methods: RpcMethodInfo[], interfaces: InterfaceDefinition[]): void {
     // Collect all type names referenced in RPC methods
     const referencedTypes = new Set<string>();
+    const genericTypeParamNames = new Set<string>();
 
     methods.forEach(method => {
+      // Track generic type parameter names to exclude from imports
+      if (method.typeParameters) {
+        method.typeParameters.forEach(typeParam => {
+          // Extract just the parameter name (before 'extends' if present)
+          const paramName = typeParam.split(' ')[0];
+          genericTypeParamNames.add(paramName);
+        });
+      }
+
       // Extract types from parameters
       method.paramTypes.forEach(param => {
         this.extractTypeNames(param.type).forEach(typeName => {
-          referencedTypes.add(typeName);
+          if (!genericTypeParamNames.has(typeName)) {
+            referencedTypes.add(typeName);
+          }
         });
       });
 
       // Extract types from return type
       this.extractTypeNames(method.returnType).forEach(typeName => {
-        referencedTypes.add(typeName);
+        if (!genericTypeParamNames.has(typeName)) {
+          referencedTypes.add(typeName);
+        }
       });
+
+      // Extract types from generic type parameters (constraints only)
+      if (method.typeParameters) {
+        method.typeParameters.forEach(typeParam => {
+          this.extractTypeNames(typeParam).forEach(typeName => {
+            if (!genericTypeParamNames.has(typeName)) {
+              referencedTypes.add(typeName);
+            }
+          });
+        });
+      }
     });
 
     // Include interfaces that are actually referenced, from this module or others
@@ -443,7 +519,10 @@ export class RpcTypesGenerator {
     const domainMethodDefinitions = methods.map(method => {
       const methodNameWithoutModule = method.methodName;
       const paramsType = this.generateParamsType(method.paramTypes);
-      return `  ${methodNameWithoutModule}(params: ${paramsType}): Promise<${method.returnType}>;`;
+      const typeParams = method.typeParameters && method.typeParameters.length > 0
+        ? `<${method.typeParameters.join(', ')}>`
+        : '';
+      return `  ${methodNameWithoutModule}${typeParams}(params: ${paramsType}): Promise<${method.returnType}>;`;
     }).join('\n');
 
     const domainInterface = `// Domain interface for ${moduleName} module
@@ -474,15 +553,38 @@ ${domainInterface}
     const moduleImports = Object.keys(moduleGroups).map(moduleName => {
       // Collect all types referenced in this module's methods
       const referencedTypes = new Set<string>();
+      const genericTypeParamNames = new Set<string>();
+
       moduleGroups[moduleName].forEach(method => {
+        // Track generic type parameter names to exclude from imports
+        if (method.typeParameters) {
+          method.typeParameters.forEach(typeParam => {
+            const paramName = typeParam.split(' ')[0];
+            genericTypeParamNames.add(paramName);
+          });
+        }
+
         method.paramTypes.forEach(param => {
           this.extractTypeNames(param.type).forEach(typeName => {
-            referencedTypes.add(typeName);
+            if (!genericTypeParamNames.has(typeName)) {
+              referencedTypes.add(typeName);
+            }
           });
         });
         this.extractTypeNames(method.returnType).forEach(typeName => {
-          referencedTypes.add(typeName);
+          if (!genericTypeParamNames.has(typeName)) {
+            referencedTypes.add(typeName);
+          }
         });
+        if (method.typeParameters) {
+          method.typeParameters.forEach(typeParam => {
+            this.extractTypeNames(typeParam).forEach(typeName => {
+              if (!genericTypeParamNames.has(typeName)) {
+                referencedTypes.add(typeName);
+              }
+            });
+          });
+        }
       });
 
       const typesList = Array.from(referencedTypes).filter(type =>
@@ -501,15 +603,38 @@ ${domainInterface}
     const moduleReExports = Object.keys(moduleGroups).map(moduleName => {
       // Collect all types referenced in this module's methods
       const referencedTypes = new Set<string>();
+      const genericTypeParamNames = new Set<string>();
+
       moduleGroups[moduleName].forEach(method => {
+        // Track generic type parameter names to exclude from exports
+        if (method.typeParameters) {
+          method.typeParameters.forEach(typeParam => {
+            const paramName = typeParam.split(' ')[0];
+            genericTypeParamNames.add(paramName);
+          });
+        }
+
         method.paramTypes.forEach(param => {
           this.extractTypeNames(param.type).forEach(typeName => {
-            referencedTypes.add(typeName);
+            if (!genericTypeParamNames.has(typeName)) {
+              referencedTypes.add(typeName);
+            }
           });
         });
         this.extractTypeNames(method.returnType).forEach(typeName => {
-          referencedTypes.add(typeName);
+          if (!genericTypeParamNames.has(typeName)) {
+            referencedTypes.add(typeName);
+          }
         });
+        if (method.typeParameters) {
+          method.typeParameters.forEach(typeParam => {
+            this.extractTypeNames(typeParam).forEach(typeName => {
+              if (!genericTypeParamNames.has(typeName)) {
+                referencedTypes.add(typeName);
+              }
+            });
+          });
+        }
       });
 
       const typesList = Array.from(referencedTypes).filter(type =>
@@ -659,13 +784,40 @@ ${rpcClientInterface}
 
     // Track which types are used by which modules
     Object.entries(moduleGroups).forEach(([moduleName, methods]) => {
+      const genericTypeParamNames = new Set<string>();
+
       methods.forEach(method => {
+        // Track generic type parameter names to exclude
+        if (method.typeParameters) {
+          method.typeParameters.forEach(typeParam => {
+            const paramName = typeParam.split(' ')[0];
+            genericTypeParamNames.add(paramName);
+          });
+        }
+
         // Extract types from parameters and return types
         const allTypes = new Set<string>();
         method.paramTypes.forEach(param => {
-          this.extractTypeNames(param.type).forEach(typeName => allTypes.add(typeName));
+          this.extractTypeNames(param.type).forEach(typeName => {
+            if (!genericTypeParamNames.has(typeName)) {
+              allTypes.add(typeName);
+            }
+          });
         });
-        this.extractTypeNames(method.returnType).forEach(typeName => allTypes.add(typeName));
+        this.extractTypeNames(method.returnType).forEach(typeName => {
+          if (!genericTypeParamNames.has(typeName)) {
+            allTypes.add(typeName);
+          }
+        });
+        if (method.typeParameters) {
+          method.typeParameters.forEach(typeParam => {
+            this.extractTypeNames(typeParam).forEach(typeName => {
+              if (!genericTypeParamNames.has(typeName)) {
+                allTypes.add(typeName);
+              }
+            });
+          });
+        }
 
         allTypes.forEach(typeName => {
           if (!typeToModulesMap.has(typeName)) {

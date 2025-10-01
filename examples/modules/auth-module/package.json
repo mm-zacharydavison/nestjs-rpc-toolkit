@@ -10,6 +10,7 @@
     "start:microservice": "node dist/main.js"
   },
   "dependencies": {
+    "@meetsmore/lib-rpc": "workspace:*",
     "@zdavison/nestjs-rpc-toolkit": "workspace:*",
     "@nestjs/common": "^10.0.0",
     "@nestjs/core": "^10.0.0",

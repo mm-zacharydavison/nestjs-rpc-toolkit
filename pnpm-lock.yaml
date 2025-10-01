@@ -112,6 +112,9 @@ importers:
 
   examples/modules/auth-module:
     dependencies:
+      '@meetsmore/lib-rpc':
+        specifier: workspace:*
+        version: link:../../lib-rpc
       '@nestjs/common':
         specifier: ^10.0.0
         version: 10.4.20(reflect-metadata@0.1.14)(rxjs@7.8.2)

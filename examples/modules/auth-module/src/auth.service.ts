@@ -1,9 +1,10 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { RpcController, RpcMethod } from '@zdavison/nestjs-rpc-toolkit';
+import { IRpcClient } from '@meetsmore/lib-rpc';
 
 @Injectable()
 @RpcController()
@@ -11,7 +12,10 @@ export class AuthService {
   private users = new Map<string, { id: string; email: string; password: string }>();
   private idCounter = 1;
 
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    @Inject('RPC') private rpc: IRpcClient,
+  ) {}
 
   @RpcMethod()
   async register(registerDto: RegisterDto) {
@@ -75,5 +79,22 @@ export class AuthService {
       id: user.id,
       email: user.email,
     };
+  }
+
+  @RpcMethod()
+  async getUserEmailsById(userIds: number[]): Promise<string[]> {
+    // Example usage of generic lookupUsers RPC call
+    // Only select email and id fields
+    const users = await this.rpc.user.lookupUsers({
+      query: {
+        userIds,
+        select: {
+          id: true,
+          email: true,
+        },
+      },
+    });
+
+    return users.map(user => user.email!);
   }
 }

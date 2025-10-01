@@ -11,6 +11,11 @@ export interface CreateUserDto {
   isActive: boolean;
 }
 
+export interface LookupUsersQuery<Select extends UserSelect = UserSelect> {
+  userIds: number[];
+  select: Select;
+}
+
 export interface User {
   id: number;
   email: string;
@@ -21,7 +26,18 @@ export interface User {
   updatedAt: Date;
 }
 
+export type UserSelect = {
+  id?: boolean;
+  email?: boolean;
+  firstName?: boolean;
+  lastName?: boolean;
+  isActive?: boolean;
+  createdAt?: boolean;
+  updatedAt?: boolean;
+}
+
 // Domain interface for user module
 export interface UserDomain {
   create(params: { createUserDto: CreateUserDto }): Promise<User>;
+  lookupUsers<Select extends UserSelect>(params: { query: LookupUsersQuery<Select> }): Promise<Partial<User>[]>;
 }
