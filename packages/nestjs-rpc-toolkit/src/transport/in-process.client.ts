@@ -1,5 +1,6 @@
 import { ClientProxy, ReadPacket, WritePacket } from '@nestjs/microservices';
 import { InProcessTransportStrategy } from './in-process.transport';
+import { Observable, defer, from } from 'rxjs';
 
 export class InProcessClientProxy extends ClientProxy {
   private transport = InProcessTransportStrategy.getInstance();
@@ -30,5 +31,10 @@ export class InProcessClientProxy extends ClientProxy {
       });
 
     return () => {}; // Return cleanup function (no-op for in-memory)
+  }
+
+  // Override send() to return a proper Observable
+  send<TResult = any, TInput = any>(pattern: any, data: TInput): Observable<TResult> {
+    return defer(() => from(this.transport.sendMessage(pattern as string, data))) as Observable<TResult>;
   }
 }

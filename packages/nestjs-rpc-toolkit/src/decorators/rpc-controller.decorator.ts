@@ -1,4 +1,6 @@
 import { Controller } from '@nestjs/common';
+import { MessagePattern as NestMessagePattern } from '@nestjs/microservices';
+import { rpcRegistry, RpcMethodMetadata } from '../rpc/rpc-registry';
 import 'reflect-metadata';
 
 /**
@@ -48,6 +50,29 @@ export function RpcController(prefix?: string): ClassDecorator {
     }
 
     Reflect.defineMetadata('rpc:module', modulePrefix, target);
+
+    // Process any pending @RpcMethod decorators that were applied before @RpcController
+    const pendingMethods = Reflect.getMetadata('rpc:pending-methods', target) || [];
+    for (const { propertyKey, descriptor } of pendingMethods) {
+      const methodName = propertyKey;
+      const actualPattern = `${modulePrefix}.${methodName}`;
+
+      // Register in RPC registry
+      const metadata: RpcMethodMetadata = {
+        pattern: actualPattern,
+        module: modulePrefix as string,
+        methodName,
+        target,
+        propertyKey,
+      };
+      rpcRegistry.registerMethod(metadata);
+
+      // Apply the NestJS MessagePattern decorator
+      NestMessagePattern(actualPattern)(target.prototype, propertyKey, descriptor);
+    }
+
+    // Clear the pending methods
+    Reflect.deleteMetadata('rpc:pending-methods', target);
 
     return target;
   };

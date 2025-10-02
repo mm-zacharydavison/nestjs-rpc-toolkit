@@ -19,8 +19,6 @@ export class AuthService {
 
   @RpcMethod()
   async register(registerDto: RegisterDto) {
-    console.log('auth.register called', registerDto)
-
     const { email, password } = registerDto;
 
     if (this.users.has(email)) {

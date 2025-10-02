@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class RpcClient {
@@ -14,7 +15,8 @@ export class RpcClient {
         return async (params: any) => {
           const pattern = `${domain}.${methodName}`;
           try {
-            const result = await this.client.send(pattern, params).toPromise();
+            const observable = this.client.send(pattern, params);
+            const result = await firstValueFrom(observable);
             return result;
           } catch (error) {
             throw new Error(`RPC call to '${pattern}' failed: ${error instanceof Error ? error.message : String(error)}`);

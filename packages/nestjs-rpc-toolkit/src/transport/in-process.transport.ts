@@ -28,7 +28,16 @@ export class InProcessTransportStrategy extends Server implements CustomTranspor
       throw new Error(`No handler registered for pattern: ${pattern}`);
     }
 
-    return await handler(packet.data, context);
+    const result = await handler(packet.data, context);
+
+    // If the handler returns an Observable (error case), we need to convert it to a rejection
+    if (result && typeof result === 'object' && '_subscribe' in result) {
+      // This is an Observable - convert to promise and await it
+      const { firstValueFrom } = require('rxjs');
+      return await firstValueFrom(result);
+    }
+
+    return result;
   }
 
   async handleEvent(

@@ -3,3 +3,4 @@ packages:
   - 'examples/modules/*'
   - 'examples/lib-rpc'
   - 'packages/*'
+  - 'tests'
