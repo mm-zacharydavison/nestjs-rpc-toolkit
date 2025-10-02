@@ -22,12 +22,14 @@ interface RpcMethodInfo {
   returnType: string;
   sourceFile: string;
   typeParameters?: string[];
+  jsDoc?: string;
 }
 
 interface InterfaceDefinition {
   name: string;
   source: string;
   module: string;
+  jsDoc?: string;
 }
 
 export class RpcTypesGenerator {
@@ -221,12 +223,14 @@ export class RpcTypesGenerator {
     const name = interfaceDeclaration.getName();
     const source = interfaceDeclaration.getText();
     const moduleName = this.getModuleForFile(sourceFile.getFilePath());
+    const jsDoc = this.extractJsDoc(interfaceDeclaration);
 
     if (name && this.isRelevantInterface(name) && !this.isInternalType(name)) {
       this.interfaces.set(name, {
         name,
         source,
-        module: moduleName
+        module: moduleName,
+        jsDoc
       });
     }
   }
@@ -269,17 +273,24 @@ export class RpcTypesGenerator {
           // Clean up the type string - remove import paths and keep it simple
           propType = this.cleanTypeString(fullType);
         }
-        return `  ${propName}: ${propType};`;
+        // Extract JSDoc for the property
+        const propJsDoc = this.extractJsDoc(prop);
+        const propJsDocStr = propJsDoc ? `${propJsDoc}\n` : '';
+        return `${propJsDocStr}  ${propName}: ${propType};`;
       });
 
     if (properties.length > 0) {
-      const source = `export interface ${name}${typeParamsStr} {\n${properties.join('\n')}\n}`;
+      // Extract JSDoc for the class
+      const classJsDoc = this.extractJsDoc(classDeclaration);
+      const classJsDocStr = classJsDoc ? `${classJsDoc}\n` : '';
+      const source = `${classJsDocStr}export interface ${name}${typeParamsStr} {\n${properties.join('\n')}\n}`;
       const moduleName = this.getModuleForFile(sourceFile.getFilePath());
 
       this.interfaces.set(name, {
         name,
         source,
-        module: moduleName
+        module: moduleName,
+        jsDoc: classJsDoc
       });
     }
   }
@@ -288,17 +299,24 @@ export class RpcTypesGenerator {
     const name = typeAliasDeclaration.getName();
     let source = typeAliasDeclaration.getText();
     const moduleName = this.getModuleForFile(sourceFile.getFilePath());
+    const jsDoc = this.extractJsDoc(typeAliasDeclaration);
 
     // Ensure the source has export keyword
     if (!source.startsWith('export ')) {
       source = `export ${source}`;
     }
 
+    // Prepend JSDoc if available
+    if (jsDoc) {
+      source = `${jsDoc}\n${source}`;
+    }
+
     if (name && this.isRelevantInterface(name) && !this.isInternalType(name)) {
       this.interfaces.set(name, {
         name,
         source,
-        module: moduleName
+        module: moduleName,
+        jsDoc
       });
     }
   }
@@ -410,6 +428,9 @@ export class RpcTypesGenerator {
       return name;
     });
 
+    // Extract JSDoc comment
+    const jsDocComment = this.extractJsDoc(method);
+
     const rpcMethod = {
       pattern,
       methodName,
@@ -418,11 +439,21 @@ export class RpcTypesGenerator {
       returnType,
       sourceFile: sourceFile.getFilePath(),
       typeParameters: typeParameters.length > 0 ? typeParameters : undefined,
+      jsDoc: jsDocComment,
     };
 
 
     this.rpcMethods.push(rpcMethod);
     return rpcMethod;
+  }
+
+  private extractJsDoc(node: MethodDeclaration | any): string | undefined {
+    const jsDocs = node.getJsDocs();
+    if (!jsDocs || jsDocs.length === 0) return undefined;
+
+    // Get the full text of the JSDoc comment
+    const jsDocText = jsDocs.map((doc: any) => doc.getText()).join('\n');
+    return jsDocText;
   }
 
   private generateTypesFile(): void {
@@ -522,7 +553,8 @@ export class RpcTypesGenerator {
       const typeParams = method.typeParameters && method.typeParameters.length > 0
         ? `<${method.typeParameters.join(', ')}>`
         : '';
-      return `  ${methodNameWithoutModule}${typeParams}(params: ${paramsType}): Promise<${method.returnType}>;`;
+      const jsDocComment = method.jsDoc ? `${method.jsDoc}\n` : '';
+      return `${jsDocComment}  ${methodNameWithoutModule}${typeParams}(params: ${paramsType}): Promise<${method.returnType}>;`;
     }).join('\n');
 
     const domainInterface = `// Domain interface for ${moduleName} module

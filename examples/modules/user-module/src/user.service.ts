@@ -16,24 +16,28 @@ export class UserService {
     @Inject('RPC') private rpc: IRpcClient,
   ) {}
 
+  /**
+   * Create a new user.
+   * @param createUserDto - The user payload to create.
+   * @returns - The created user.
+   */
   @RpcMethod()
   async create(createUserDto: CreateUserDto): Promise<User> {
-    console.log('user.create', createUserDto)
     const user: User = {
       id: this.idCounter++,
       isActive: true,
       ...createUserDto,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     this.users.push(user);
 
     // Example RPC call to auth service.
     await this.rpc.auth.register(
-      { registerDto: { 
-        email: createUserDto.email, 
-        password: 'some-password' 
-      } 
+      { registerDto: {
+        email: createUserDto.email,
+        password: 'some-password'
+      }
     })
 
     return user;
@@ -54,7 +58,7 @@ export class UserService {
     this.users[userIndex] = {
       ...this.users[userIndex],
       ...updateUserDto,
-      updatedAt: new Date(),
+      updatedAt: new Date().toISOString(),
     };
     return this.users[userIndex];
   }
@@ -67,6 +71,11 @@ export class UserService {
     return true;
   }
 
+  /**
+   * Lookup multiple users by their IDs with field selection.
+   * @param query - The lookup query containing user IDs and field selection
+   * @returns An array of users with only the selected fields populated
+   */
   @RpcMethod()
   async lookupUsers<Select extends UserSelect>(
     query: LookupUsersQuery<Select>,

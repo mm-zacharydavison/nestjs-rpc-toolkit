@@ -8,11 +8,19 @@
     "build": "turbo build",
     "dev": "pnpm --filter api run start:dev",
     "clean": "pnpm --filter '*' run clean",
-    "generate-rpc": "pnpm --filter lib-rpc run generate:types"
+    "generate-rpc": "pnpm --filter lib-rpc run generate:types",
+    "test": "pnpm --filter @zdavison/nestjs-rpc-toolkit-tests run test",
+    "test:watch": "pnpm --filter @zdavison/nestjs-rpc-toolkit-tests run test:watch",
+    "test:coverage": "pnpm --filter @zdavison/nestjs-rpc-toolkit-tests run test:coverage"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0",
     "turbo": "^2.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "reflect-metadata": "^0.2.2"
+    }
   }
 }

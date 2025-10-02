@@ -4,33 +4,59 @@
 // IMPORTANT: All types must be JSON-serializable for TCP transport when extracted to microservices
 
 // User module types
+/**
+ * DTO for creating a new user
+ */
 export interface CreateUserDto {
+/** The user's email address */
   email: string;
+/** The user's first name */
   firstName: string;
+/** The user's last name */
   lastName: string;
+/** Whether the user account is active (defaults to true if not provided) */
   isActive: boolean;
 }
 
+/**
+ * Query parameters for looking up multiple users by ID with field selection
+ */
 export interface LookupUsersQuery<Select extends UserSelect = UserSelect> {
+/** Array of user IDs to look up */
   userIds: number[];
+/** Field selection object specifying which fields to return */
   select: Select;
 }
 
+/**
+ * Result of a lookup users query with selected fields
+ */
 export interface LookupUsersResult<Select extends UserSelect = UserSelect> {
+/** Array of users with only the selected fields populated */
   users: Pick<
     User,
     Extract<{ [K in keyof Select]: Select[K] extends true ? K : never }[keyof Select], keyof User>
   >[];
 }
 
+/**
+ * A User account in our system.
+ */
 export interface User {
+/** Unique identifier for the user */
   id: number;
+/** User's email address */
   email: string;
+/** User's first name */
   firstName: string;
+/** User's last name */
   lastName: string;
+/** If this users account is currently active */
   isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+/** ISO 8601 timestamp when the user was created */
+  createdAt: string;
+/** ISO 8601 timestamp when the user was last updated */
+  updatedAt: string;
 }
 
 export type UserSelect = {
@@ -39,6 +65,16 @@ export type UserSelect = {
 
 // Domain interface for user module
 export interface UserDomain {
+/**
+   * Create a new user.
+   * @param createUserDto - The user payload to create.
+   * @returns - The created user.
+   */
   create(params: { createUserDto: CreateUserDto }): Promise<User>;
+/**
+   * Lookup multiple users by their IDs with field selection.
+   * @param query - The lookup query containing user IDs and field selection
+   * @returns An array of users with only the selected fields populated
+   */
   lookupUsers<Select extends UserSelect>(params: { query: LookupUsersQuery<Select> }): Promise<LookupUsersResult<Select>>;
 }

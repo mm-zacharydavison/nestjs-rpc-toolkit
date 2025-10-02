@@ -89,3 +89,11 @@ Each module follows this structure:
 
 ### Transport Configuration
 The toolkit uses `InProcessTransportStrategy` for modular monolith architecture, enabling in-memory RPC calls without network overhead.
+
+## Writing Tests
+
+- The project only write integration tests.
+- The tests are located in the `tests` directory.
+- Each test file will be for a high level requirement or feature.
+- Tests will always test against the `examples` directory.
+  - Adding a new test will require adding an example of the feature to the `examples` directory.

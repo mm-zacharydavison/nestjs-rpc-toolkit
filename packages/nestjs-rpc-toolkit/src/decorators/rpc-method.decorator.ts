@@ -1,6 +1,4 @@
-import { MessagePattern as NestMessagePattern } from '@nestjs/microservices';
-import { rpcRegistry, RpcMethodMetadata } from '../rpc/rpc-registry';
-import { SerializableRpcMethod } from '../types/serializable';
+import { ValidateRpcMethod } from '../types/serializable';
 import 'reflect-metadata';
 
 /**
@@ -23,49 +21,73 @@ import 'reflect-metadata';
  * }
  * ```
  */
-export function RpcMethod<T extends (...args: any[]) => any>(): (
-  target: any,
-  propertyKey: string,
-  descriptor: TypedPropertyDescriptor<T>
-) => TypedPropertyDescriptor<SerializableRpcMethod<T>> | void {
-  return function (
+export function RpcMethod() {
+  return function <TMethod extends (...args: any[]) => any>(
     target: any,
     propertyKey: string,
-    descriptor: TypedPropertyDescriptor<T>
-  ): TypedPropertyDescriptor<SerializableRpcMethod<T>> | void {
+    descriptor: TypedPropertyDescriptor<ValidateRpcMethod<TMethod>>
+  ): void {
     const originalMethod = descriptor.value!;
 
-    // Get module prefix from @RpcController decorator metadata
-    const module = Reflect.getMetadata('rpc:module', target.constructor);
-
-    if (!module) {
-      throw new Error(`@RpcMethod can only be used in classes decorated with @RpcController. Class: ${target.constructor.name}`);
-    }
-
-    // Use method name for the pattern
-    const methodName = propertyKey;
-    const actualPattern = `${module}.${methodName}`;
-
-    // Register in RPC registry
-    const metadata: RpcMethodMetadata = {
-      pattern: actualPattern,
-      module,
-      methodName,
-      target: target.constructor,
-      propertyKey,
-    };
-    rpcRegistry.registerMethod(metadata);
-
-    // Create wrapper method that handles array-based payloads
-    descriptor.value = function (this: any, args: any[]) {
-      // If args is an array, spread it as arguments, otherwise pass as single argument
-      if (Array.isArray(args)) {
-        return originalMethod.apply(this, args);
+    // Defer the module lookup and pattern registration until runtime
+    // This is necessary because method decorators execute before class decorators
+    const getModuleAndPattern = () => {
+      const module = Reflect.getMetadata('rpc:module', target.constructor);
+      if (!module) {
+        throw new Error(`@RpcMethod can only be used in classes decorated with @RpcController. Class: ${target.constructor.name}`);
       }
-      return originalMethod.call(this, args);
+      return {
+        module,
+        pattern: `${module}.${propertyKey}`
+      };
+    };
+
+    // Create wrapper method that handles RPC parameter unwrapping
+    descriptor.value = function (this: any, ...args: any[]) {
+      // Defer the module check until the method is actually called
+      // This allows the class decorator to run first
+      getModuleAndPattern();
+
+      // NestJS microservices sends parameters as a single object: { paramName: value }
+      // We need to unwrap this and pass the actual values to the method
+      let unwrappedArgs = args;
+
+      if (args.length === 1 && typeof args[0] === 'object' && args[0] !== null) {
+        // Extract parameter names from the original method
+        const methodStr = originalMethod.toString();
+        const paramMatch = methodStr.match(/^(?:async\s+)?(?:function\s*)?\w*\s*\(([^)]*)\)/);
+
+        if (paramMatch) {
+          const paramNames = paramMatch[1]
+            .split(',')
+            .map(p => p.trim().split(/[:\s=]/)[0])
+            .filter(p => p.length > 0);
+
+          // If the incoming object has exactly the parameter names as keys, unwrap them
+          const incomingKeys = Object.keys(args[0]);
+          if (paramNames.length > 0 && incomingKeys.length === paramNames.length) {
+            const allMatch = paramNames.every(name => incomingKeys.includes(name));
+            if (allMatch) {
+              unwrappedArgs = paramNames.map(name => args[0][name]);
+            }
+          }
+        }
+      }
+
+      // Call the original method with the unwrapped arguments
+      return originalMethod.apply(this, unwrappedArgs as any);
     } as any;
 
-    // Apply the NestJS MessagePattern decorator
-    NestMessagePattern(actualPattern)(target, propertyKey, descriptor);
+    // Store the method for lazy pattern registration
+    // We'll register it when @RpcController is applied
+    if (!Reflect.hasMetadata('rpc:pending-methods', target.constructor)) {
+      Reflect.defineMetadata('rpc:pending-methods', [], target.constructor);
+    }
+    const pendingMethods = Reflect.getMetadata('rpc:pending-methods', target.constructor);
+    pendingMethods.push({
+      propertyKey,
+      originalMethod,
+      descriptor,
+    });
   };
 }
