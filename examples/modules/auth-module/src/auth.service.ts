@@ -85,7 +85,7 @@ export class AuthService {
   async getUserEmailsById(userIds: number[]): Promise<string[]> {
     // Example usage of generic lookupUsers RPC call
     // Only select email and id fields
-    const users = await this.rpc.user.lookupUsers({
+    const result = await this.rpc.user.lookupUsers({
       query: {
         userIds,
         select: {
@@ -95,6 +95,6 @@ export class AuthService {
       },
     });
 
-    return users.map(user => user.email!);
+    return result.users.map(user => user.email!);
   }
 }

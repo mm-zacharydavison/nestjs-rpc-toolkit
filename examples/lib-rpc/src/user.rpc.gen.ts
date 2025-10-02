@@ -16,6 +16,13 @@ export interface LookupUsersQuery<Select extends UserSelect = UserSelect> {
   select: Select;
 }
 
+export interface LookupUsersResult<Select extends UserSelect = UserSelect> {
+  users: Pick<
+    User,
+    Extract<{ [K in keyof Select]: Select[K] extends true ? K : never }[keyof Select], keyof User>
+  >[];
+}
+
 export interface User {
   id: number;
   email: string;
@@ -27,17 +34,11 @@ export interface User {
 }
 
 export type UserSelect = {
-  id?: boolean;
-  email?: boolean;
-  firstName?: boolean;
-  lastName?: boolean;
-  isActive?: boolean;
-  createdAt?: boolean;
-  updatedAt?: boolean;
+  [K in keyof User]?: boolean;
 }
 
 // Domain interface for user module
 export interface UserDomain {
   create(params: { createUserDto: CreateUserDto }): Promise<User>;
-  lookupUsers<Select extends UserSelect>(params: { query: LookupUsersQuery<Select> }): Promise<Partial<User>[]>;
+  lookupUsers<Select extends UserSelect>(params: { query: LookupUsersQuery<Select> }): Promise<LookupUsersResult<Select>>;
 }
