@@ -1,0 +1,258 @@
+examples/shared/types/package.json
+  ad93da3 1-15
+examples/shared/types/src/index.ts
+  ad93da3 1
+packages/nestjs-rpc-toolkit/src/utils/package-manager.utils.ts
+  ad93da3 1-43
+examples/modules/user-module/src/user.service.ts
+  ad93da3 8,104-117
+packages/nestjs-rpc-toolkit/src/index.ts
+  ad93da3 9
+examples/modules/user-module/package.json
+  ad93da3 14
+examples/modules/user-module/src/dto/update-user-contact.dto.ts
+  ad93da3 1-21
+examples/shared/types/tsconfig.json
+  ad93da3 1-23
+packages/nestjs-rpc-toolkit/src/generators/rpc-types-generator.ts
+  ad93da3 5,52-53,226-228,242-255,300-312,469-522,710-712,787-791,794-796,802,1040-1043
+examples/shared/types/src/address.type.ts
+  ad93da3 1-29
+tests/src/codegen/external-types.test.ts
+  ad93da3 1-188
+pnpm-workspace.yaml
+  ad93da3 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.20",
+  "base_commit_sha": "8a394207be38f8c89776283ee5ded8573ef5a7c1",
+  "prompts": {
+    "ad93da3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86dba602-6435-4a4f-a75c-3442af40dd1e",
+        "model": "claude-sonnet-4-5-20250929"
+      },
+      "human_author": "Zachary Davison <zachary.davison@meetsmore.com>",
+      "messages": [
+        {
+          "type": "user",
+          "text": "There is a bug whereby if an RPC interface contains a type imported from another package, that type wont be included in the generated output\nwrite a test case which reproduces this behaviour, it should fail",
+          "timestamp": "2025-11-17T17:17:24.149Z"
+        },
+        {
+          "type": "assistant",
+          "text": "I'll help you create a test case that reproduces this bug. Let me first explore the existing test structure to understand how they work.",
+          "timestamp": "2025-11-17T17:17:30.150Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Glob",
+          "input": {
+            "pattern": "tests/**/*.test.ts"
+          },
+          "timestamp": "2025-11-17T17:17:30.574Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/home/z/Desktop/work/nestjs-rpc-toolkit/tests"
+          },
+          "timestamp": "2025-11-17T17:17:31.181Z"
+        },
+        {
+          "type": "user",
+          "text": "EISDIR: illegal operation on a directory, read",
+          "timestamp": "2025-11-17T17:17:31.371Z"
+        },
+        {
+          "type": "user",
+          "text": "/home/z/Desktop/work/nestjs-rpc-toolkit/tests/src/codegen/decorators/rpc-controller.test.ts\n/home/z/Desktop/work/nestjs-rpc-toolkit/tests/src/codegen/enums.test.ts\n/home/z/Desktop/work/nestjs-rpc-toolkit/tests/src/bootstrap.test.ts\n/home/z/Desktop/work/nestjs-rpc-toolkit/tests/src/codegen/generics.test.ts\n/home/z/Desktop/work/nestjs-rpc-toolkit/tests/src/codegen/jsdoc.test.ts\n/home/z/Desktop/work/nestjs-rpc-toolkit/tests/src/codegen/serialization-safety.test.ts\n/home/z/Desktop/work/nestjs-rpc-toolkit/tests/src/transport/in-process.test.ts\n/home/z/Desktop/work/nestjs-rpc-toolkit/tests/src/transport/tcp.test.ts\n/home/z/Desktop/work/nestjs-rpc-toolkit/tests/src/codegen/decorators/rpc-method.test.ts",
+          "timestamp": "2025-11-17T17:17:31.415Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/home/z/Desktop/work/nestjs-rpc-toolkit/tests/src/codegen/generics.test.ts"
+          },
+          "timestamp": "2025-11-17T17:17:36.414Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/home/z/Desktop/work/nestjs-rpc-toolkit/tests/src/codegen/jsdoc.test.ts"
+          },
+          "timestamp": "2025-11-17T17:17:36.877Z"
+        },
+        {
+          "type": "user",
+          "text": "     1→import 'reflect-metadata';\n     2→import { RpcTypesGenerator } from '@zdavison/nestjs-rpc-toolkit';\n     3→import * as path from 'path';\n     4→import * as fs from 'fs';\n     5→\n     6→describe('Generic types will be supported for all RPC interfaces.', () => {\n     7→  const rootDir = path.join(__dirname, '../../..');\n     8→  const examplesLibRpcDir = path.join(rootDir, 'examples/lib-rpc');\n     9→  const configPath = path.join(examplesLibRpcDir, 'nestjs-rpc-toolkit.config.json');\n    10→  const outputDir = path.join(examplesLibRpcDir, 'src');\n    11→\n    12→  let generator: RpcTypesGenerator;\n    13→\n    14→  beforeAll(() => {\n    15→    generator = new RpcTypesGenerator({\n    16→      rootDir,\n    17→      configPath\n    18→    });\n    19→  });\n    20→\n    21→  describe('Generic Type Parameters in Generated Interfaces', () => {\n    22→    it('should generate generic type parameters for DTO interfaces', () => {\n    23→      generator.generate();\n    24→\n    25→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n    26→      const content = fs.readFileSync(userGenFile, 'utf-8');\n    27→\n    28→      // Check that LookupUsersQuery has generic type parameter\n    29→      expect(content).toMatch(/export interface LookupUsersQuery<Select extends UserSelect/);\n    30→    });\n    31→\n    32→    it('should generate generic type parameters for result interfaces', () => {\n    33→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n    34→      const content = fs.readFileSync(userGenFile, 'utf-8');\n    35→\n    36→      // Check that LookupUsersResult has generic type parameter\n    37→      expect(content).toMatch(/export interface LookupUsersResult<Select extends UserSelect/);\n    38→    });\n    39→\n    40→    it('should use Pick utility type with generic constraints for field selection', () => {\n    41→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n    42→      const content = fs.readFileSync(userGenFile, 'utf-8');\n    43→\n    44→      // Check that the result uses Pick with generic type parameter\n    45→      expect(content).toContain('Pick<');\n    46→      expect(content).toContain('Extract<');\n    47→      // Should have the generic field selection pattern\n    48→      expect(content).toMatch(/Pick<\\s*User,\\s*Extract</);\n    49→    });\n    50→\n    51→    it('should generate UserSelect type mapping', () => {\n    52→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n    53→      const content = fs.readFileSync(userGenFile, 'utf-8');\n    54→\n    55→      // Check for the UserSelect mapped type\n    56→      expect(content).toMatch(/export type UserSelect = \\{/);\n    57→      expect(content).toMatch(/\\[K in keyof User\\]\\?: boolean;/);\n    58→    });\n    59→  });\n    60→\n    61→  describe('Generic RPC Method Signatures', () => {\n    62→    it('should generate RPC method with generic type parameter in UserDomain', () => {\n    63→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n    64→      const content = fs.readFileSync(userGenFile, 'utf-8');\n    65→\n    66→      // Check that lookupUsers method has generic type parameter\n    67→      expect(content).toMatch(/lookupUsers<Select extends UserSelect>/);\n    68→    });\n    69→\n    70→    it('should use generic type in method parameters', () => {\n    71→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n    72→      const content = fs.readFileSync(userGenFile, 'utf-8');\n    73→\n    74→      // Check that the method parameter uses the generic type\n    75→      expect(content).toMatch(/params: \\{ query: LookupUsersQuery<Select> \\}/);\n    76→    });\n    77→\n    78→    it('should use generic type in method return type', () => {\n    79→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n    80→      const content = fs.readFileSync(userGenFile, 'utf-8');\n    81→\n    82→      // Check that the return type uses the generic type\n    83→      expect(content).toMatch(/Promise<LookupUsersResult<Select>>/);\n    84→    });\n    85→\n    86→    it('should have default generic constraints', () => {\n    87→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n    88→      const content = fs.readFileSync(userGenFile, 'utf-8');\n    89→\n    90→      // Check that generic constraints have defaults\n    91→      expect(content).toMatch(/<Select extends UserSelect = UserSelect>/);\n    92→    });\n    93→  });\n    94→\n    95→  describe('Generic Type Preservation Across Modules', () => {\n    96→    it('should generate generic types for all modules with generic RPC methods', () => {\n    97→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n    98→      expect(fs.existsSync(userGenFile)).toBe(true);\n    99→\n   100→      const content = fs.readFileSync(userGenFile, 'utf-8');\n   101→\n   102→      // Verify the module has at least one generic method\n   103→      const hasGenericMethod = content.includes('<Select extends UserSelect>');\n   104→      expect(hasGenericMethod).toBe(true);\n   105→    });\n   106→\n   107→    it('should include generic types in the domain interface', () => {\n   108→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n   109→      const content = fs.readFileSync(userGenFile, 'utf-8');\n   110→\n   111→      // Check the UserDomain interface includes the generic method\n   112→      expect(content).toMatch(/export interface UserDomain \\{[\\s\\S]*lookupUsers<Select extends UserSelect>/);\n   113→    });\n   114→  });\n   115→\n   116→  describe('Type Safety with Generics', () => {\n   117→    it('should generate Extract utility type for proper field selection', () => {\n   118→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n   119→      const content = fs.readFileSync(userGenFile, 'utf-8');\n   120→\n   121→      // Should use Extract to get only the selected keys\n   122→      expect(content).toMatch(/Extract<\\{[^}]*\\}[^,]*, keyof User>/);\n   123→    });\n   124→\n   125→    it('should constrain generic parameter to UserSelect', () => {\n   126→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n   127→      const content = fs.readFileSync(userGenFile, 'utf-8');\n   128→\n   129→      // All generic parameters should extend UserSelect\n   130→      const genericMatches = content.match(/<Select extends UserSelect/g);\n   131→      expect(genericMatches).toBeTruthy();\n   132→      expect(genericMatches!.length).toBeGreaterThan(0);\n   133→    });\n   134→\n   135→    it('should use conditional types for field mapping', () => {\n   136→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n   137→      const content = fs.readFileSync(userGenFile, 'utf-8');\n   138→\n   139→      // Check for conditional type pattern: K extends true ? K : never\n   140→      expect(content).toMatch(/Select\\[K\\] extends true \\? K : never/);\n   141→    });\n   142→  });\n   143→\n   144→  describe('Generated Type Structure', () => {\n   145→    it('should export all necessary generic types', () => {\n   146→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n   147→      const content = fs.readFileSync(userGenFile, 'utf-8');\n   148→\n   149→      // All these should be exported\n   150→      expect(content).toContain('export interface LookupUsersQuery');\n   151→      expect(content).toContain('export interface LookupUsersResult');\n   152→      expect(content).toContain('export type UserSelect');\n   153→      expect(content).toContain('export interface UserDomain');\n   154→    });\n   155→\n   156→    it('should maintain proper TypeScript syntax for generic types', () => {\n   157→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n   158→      const content = fs.readFileSync(userGenFile, 'utf-8');\n   159→\n   160→      // Basic validation that it's valid TypeScript syntax\n   161→      // Check for proper generic syntax patterns\n   162→      expect(content).toMatch(/<[A-Za-z]+ extends [A-Za-z]+>/); // Generic constraint\n   163→      expect(content).toMatch(/\\[K in keyof [A-Za-z]+\\]/); // Mapped type\n   164→    });\n   165→  });\n   166→});\n   167→\n\n<system-reminder>\nWhenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.\n</system-reminder>\n",
+          "timestamp": "2025-11-17T17:17:37.042Z"
+        },
+        {
+          "type": "user",
+          "text": "     1→import 'reflect-metadata';\n     2→import { RpcTypesGenerator } from '@zdavison/nestjs-rpc-toolkit';\n     3→import * as path from 'path';\n     4→import * as fs from 'fs';\n     5→\n     6→describe('JSDoc will be preserved in RPC interfaces.', () => {\n     7→  const rootDir = path.join(__dirname, '../../..');\n     8→  const examplesLibRpcDir = path.join(rootDir, 'examples/lib-rpc');\n     9→  const configPath = path.join(examplesLibRpcDir, 'nestjs-rpc-toolkit.config.json');\n    10→  const outputDir = path.join(examplesLibRpcDir, 'src');\n    11→\n    12→  let generator: RpcTypesGenerator;\n    13→\n    14→  beforeAll(() => {\n    15→    generator = new RpcTypesGenerator({\n    16→      rootDir,\n    17→      configPath\n    18→    });\n    19→    generator.generate();\n    20→  });\n    21→\n    22→  describe('JSDoc on RPC Methods', () => {\n    23→    it('should preserve JSDoc comments on methods with @RpcMethod decorators', () => {\n    24→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n    25→      const content = fs.readFileSync(userGenFile, 'utf-8');\n    26→\n    27→      // Check that methods in the domain interface have JSDoc\n    28→      // Pattern: /**...*/\\s*methodName(...): Promise<...>\n    29→      const methodWithJsDoc = /\\/\\*\\*[\\s\\S]*?\\*\\/\\s*\\w+\\([^)]*\\):\\s*Promise</g;\n    30→      const matches = content.match(methodWithJsDoc);\n    31→\n    32→      expect(matches).toBeTruthy();\n    33→      expect(matches!.length).toBeGreaterThan(0);\n    34→    });\n    35→\n    36→    it('should preserve @param tags in method JSDoc', () => {\n    37→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n    38→      const content = fs.readFileSync(userGenFile, 'utf-8');\n    39→\n    40→      // Check for @param tags in JSDoc\n    41→      expect(content).toMatch(/\\* @param \\w+/);\n    42→    });\n    43→\n    44→    it('should preserve @returns tags in method JSDoc', () => {\n    45→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n    46→      const content = fs.readFileSync(userGenFile, 'utf-8');\n    47→\n    48→      // Check for @returns tags in JSDoc\n    49→      expect(content).toMatch(/\\* @returns/);\n    50→    });\n    51→\n    52→    it('should place JSDoc immediately before method declarations', () => {\n    53→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n    54→      const content = fs.readFileSync(userGenFile, 'utf-8');\n    55→\n    56→      // JSDoc should be directly followed by method signature, not separated by blank lines\n    57→      const properPlacement = /\\/\\*\\*[\\s\\S]*?\\*\\/\\s*\\w+<?\\w*>?\\([^)]*\\):/;\n    58→      expect(content).toMatch(properPlacement);\n    59→    });\n    60→  });\n    61→\n    62→  describe('JSDoc on Type Interfaces', () => {\n    63→    it('should preserve JSDoc comments on interface declarations', () => {\n    64→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n    65→      const content = fs.readFileSync(userGenFile, 'utf-8');\n    66→\n    67→      // Check for JSDoc before interface declarations\n    68→      // Pattern: /**...*/\\s*export interface\n    69→      const interfaceWithJsDoc = /\\/\\*\\*[\\s\\S]*?\\*\\/\\s*export interface/g;\n    70→      const matches = content.match(interfaceWithJsDoc);\n    71→\n    72→      expect(matches).toBeTruthy();\n    73→      expect(matches!.length).toBeGreaterThan(0);\n    74→    });\n    75→\n    76→    it('should allow type aliases with or without JSDoc', () => {\n    77→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n    78→      const content = fs.readFileSync(userGenFile, 'utf-8');\n    79→\n    80→      // Type aliases may or may not have JSDoc depending on the source\n    81→      // Just verify that if they exist, they're valid TypeScript\n    82→      if (content.includes('export type')) {\n    83→        expect(content).toMatch(/export type \\w+/);\n    84→      }\n    85→    });\n    86→\n    87→    it('should not have empty JSDoc blocks', () => {\n    88→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n    89→      const content = fs.readFileSync(userGenFile, 'utf-8');\n    90→\n    91→      // Empty JSDoc pattern: /** */ or /**\\n*/\n    92→      const emptyJsDoc = /\\/\\*\\*\\s*\\*\\//;\n    93→      expect(content).not.toMatch(emptyJsDoc);\n    94→    });\n    95→  });\n    96→\n    97→  describe('JSDoc on Type Properties', () => {\n    98→    it('should preserve JSDoc comments on interface properties', () => {\n    99→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n   100→      const content = fs.readFileSync(userGenFile, 'utf-8');\n   101→\n   102→      // Check for single-line JSDoc comments on properties\n   103→      // Pattern: /** ... */ propertyName: type;\n   104→      const propertyWithJsDoc = /\\/\\*\\* .+ \\*\\/\\s*\\w+[?]?:\\s*\\w+/;\n   105→      expect(content).toMatch(propertyWithJsDoc);\n   106→    });\n   107→\n   108→    it('should preserve multi-line JSDoc on properties', () => {\n   109→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n   110→      const content = fs.readFileSync(userGenFile, 'utf-8');\n   111→\n   112→      // Check for multi-line JSDoc (with newlines and asterisks)\n   113→      const multiLineJsDoc = /\\/\\*\\*\\s*\\n\\s*\\*/;\n   114→\n   115→      // If multi-line JSDoc exists, it should be properly formatted\n   116→      if (content.match(multiLineJsDoc)) {\n   117→        // Should have proper indentation with asterisks\n   118→        expect(content).toMatch(/\\/\\*\\*\\s*\\n\\s*\\* /);\n   119→      }\n   120→    });\n   121→\n   122→    it('should place property JSDoc on the same or previous line', () => {\n   123→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n   124→      const content = fs.readFileSync(userGenFile, 'utf-8');\n   125→\n   126→      // JSDoc should be either:\n   127→      // 1. On same line: /** comment */ property: type;\n   128→      // 2. On previous lines with no gap\n   129→      const properFormatting = /\\/\\*\\*[^*]*\\*\\/\\s*\\w+[?]?:/;\n   130→      expect(content).toMatch(properFormatting);\n   131→    });\n   132→  });\n   133→\n   134→  describe('JSDoc Preservation Across All Generated Files', () => {\n   135→    it('should preserve JSDoc in generated module files that have JSDoc in source', () => {\n   136→      const generatedFiles = fs.readdirSync(outputDir)\n   137→        .filter(file => file.endsWith('.rpc.gen.ts') && file !== 'all.rpc.gen.ts');\n   138→\n   139→      expect(generatedFiles.length).toBeGreaterThan(0);\n   140→\n   141→      // At least one generated file should have JSDoc (if source files have JSDoc)\n   142→      const filesWithJsDoc = generatedFiles.filter(file => {\n   143→        const filePath = path.join(outputDir, file);\n   144→        const content = fs.readFileSync(filePath, 'utf-8');\n   145→        return content.includes('/**');\n   146→      });\n   147→\n   148→      // We expect at least some files to have JSDoc comments\n   149→      expect(filesWithJsDoc.length).toBeGreaterThan(0);\n   150→    });\n   151→\n   152→    it('should maintain JSDoc in the aggregated all.rpc.gen.ts file', () => {\n   153→      const allGenFile = path.join(outputDir, 'all.rpc.gen.ts');\n   154→      const content = fs.readFileSync(allGenFile, 'utf-8');\n   155→\n   156→      // The main client interface should be documented\n   157→      expect(content).toContain('export interface IRpcClient');\n   158→    });\n   159→  });\n   160→\n   161→  describe('JSDoc Format Validity', () => {\n   162→    it('should use valid JSDoc syntax', () => {\n   163→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n   164→      const content = fs.readFileSync(userGenFile, 'utf-8');\n   165→\n   166→      // All JSDoc blocks should start with /** and end with */\n   167→      const jsDocBlocks = content.match(/\\/\\*\\*[\\s\\S]*?\\*\\//g);\n   168→\n   169→      expect(jsDocBlocks).toBeTruthy();\n   170→\n   171→      jsDocBlocks!.forEach(block => {\n   172→        expect(block).toMatch(/^\\/\\*\\*/);\n   173→        expect(block).toMatch(/\\*\\/$/);\n   174→      });\n   175→    });\n   176→\n   177→    it('should not break TypeScript declarations with JSDoc', () => {\n   178→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n   179→      const content = fs.readFileSync(userGenFile, 'utf-8');\n   180→\n   181→      // After each JSDoc block, there should be a valid TypeScript declaration\n   182→      // Not: /** comment */ export\n   183→      const validPattern = /\\/\\*\\*[\\s\\S]*?\\*\\/\\s*(export\\s+(interface|type|const)|[a-z]\\w+[(<:])/gi;\n   184→      const matches = content.match(validPattern);\n   185→\n   186→      expect(matches).toBeTruthy();\n   187→      expect(matches!.length).toBeGreaterThan(0);\n   188→    });\n   189→\n   190→    it('should preserve JSDoc description text', () => {\n   191→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n   192→      const content = fs.readFileSync(userGenFile, 'utf-8');\n   193→\n   194→      // JSDoc blocks should contain actual text (not just tags)\n   195→      const jsDocWithText = /\\/\\*\\*[\\s\\S]*?\\* [A-Z][a-z]/;\n   196→      expect(content).toMatch(jsDocWithText);\n   197→    });\n   198→  });\n   199→\n   200→  describe('JSDoc on Copied/Referenced Types', () => {\n   201→    it('should preserve JSDoc on types used in method parameters', () => {\n   202→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n   203→      const content = fs.readFileSync(userGenFile, 'utf-8');\n   204→\n   205→      // Find a method signature\n   206→      const methodMatch = content.match(/\\w+\\(params: \\{ \\w+: (\\w+)/);\n   207→\n   208→      if (methodMatch) {\n   209→        const paramType = methodMatch[1];\n   210→\n   211→        // That parameter type should have JSDoc\n   212→        const typePattern = new RegExp(`\\\\/\\\\*\\\\*[\\\\s\\\\S]*?\\\\*\\\\/\\\\s*export interface ${paramType}`);\n   213→        expect(content).toMatch(typePattern);\n   214→      }\n   215→    });\n   216→\n   217→    it('should preserve JSDoc on types used in method return values', () => {\n   218→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n   219→      const content = fs.readFileSync(userGenFile, 'utf-8');\n   220→\n   221→      // Find a method return type\n   222→      const methodMatch = content.match(/Promise<(\\w+)>/);\n   223→\n   224→      if (methodMatch) {\n   225→        const returnType = methodMatch[1];\n   226→\n   227→        // That return type should have JSDoc (unless it's a primitive)\n   228→        if (!['string', 'number', 'boolean', 'void'].includes(returnType)) {\n   229→          const typePattern = new RegExp(`\\\\/\\\\*\\\\*[\\\\s\\\\S]*?\\\\*\\\\/\\\\s*export interface ${returnType}`);\n   230→          expect(content).toMatch(typePattern);\n   231→        }\n   232→      }\n   233→    });\n   234→\n   235→    it('should preserve JSDoc on nested type properties', () => {\n   236→      const userGenFile = path.join(outputDir, 'user.rpc.gen.ts');\n   237→      const content = fs.readFileSync(userGenFile, 'utf-8');\n   238→\n   239→      // Look for interfaces with multiple properties\n   240→      const interfaceMatch = content.match(/export interface \\w+ \\{([\\s\\S]*?)\\n\\}/);\n   241→\n   242→      if (interfaceMatch) {\n   243→        const interfaceBody = interfaceMatch[1];\n   244→\n   245→        // Properties in the interface should have JSDoc comments\n   246→        const propertyLines = interfaceBody.split('\\n').filter(line => line.includes(':'));\n   247→\n   248→        if (propertyLines.length > 0) {\n   249→          // At least some properties should have JSDoc\n   250→          const hasJsDoc = interfaceBody.includes('/**');\n   251→          expect(hasJsDoc).toBe(true);\n   252→        }\n   253→      }\n   254→    });\n   255→  });\n   256→});\n   257→\n\n<system-reminder>\nWhenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.\n</system-reminder>\n",
+          "timestamp": "2025-11-17T17:17:37.046Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Glob",
+          "input": {
+            "pattern": "examples/modules/*/src/*.service.ts"
+          },
+          "timestamp": "2025-11-17T17:17:41.898Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/home/z/Desktop/work/nestjs-rpc-toolkit/examples/modules/user-module/src/user.service.ts"
+          },
+          "timestamp": "2025-11-17T17:17:42.909Z"
+        },
+        {
+          "type": "user",
+          "text": "     1→import { Inject, Injectable } from '@nestjs/common';\n     2→import { CreateUserDto } from './dto/create-user.dto';\n     3→import { UpdateUserDto } from './dto/update-user.dto';\n     4→import { User, UserSelect } from './entities/user.entity';\n     5→import { RpcController, RpcMethod } from '@zdavison/nestjs-rpc-toolkit';\n     6→import { IRpcClient } from '@meetsmore/lib-rpc';\n     7→import { LookupUsersQuery, LookupUsersResult } from './dto/lookup-users.dto';\n     8→\n     9→@Injectable()\n    10→@RpcController()\n    11→export class UserService {\n    12→  private users: User[] = [];\n    13→  private idCounter = 1;\n    14→\n    15→  constructor(\n    16→    @Inject('RPC') private rpc: IRpcClient,\n    17→  ) {}\n    18→\n    19→  /**\n    20→   * Create a new user.\n    21→   * @param createUserDto - The user payload to create.\n    22→   * @returns - The created user.\n    23→   */\n    24→  @RpcMethod()\n    25→  async create(createUserDto: CreateUserDto): Promise<User> {\n    26→    const user: User = {\n    27→      id: this.idCounter++,\n    28→      isActive: true,\n    29→      ...createUserDto,\n    30→      createdAt: new Date().toISOString(),\n    31→      updatedAt: new Date().toISOString(),\n    32→    };\n    33→    this.users.push(user);\n    34→\n    35→    // Example RPC call to auth service.\n    36→    await this.rpc.auth.register(\n    37→      { registerDto: {\n    38→        email: createUserDto.email,\n    39→        password: 'some-password'\n    40→      }\n    41→    })\n    42→\n    43→    return user;\n    44→  }\n    45→\n    46→  findAll(): User[] {\n    47→    return this.users;\n    48→  }\n    49→\n    50→  findOne(id: number): User | undefined {\n    51→    return this.users.find(user => user.id === id);\n    52→  }\n    53→\n    54→  update(id: number, updateUserDto: UpdateUserDto): User | undefined {\n    55→    const userIndex = this.users.findIndex(user => user.id === id);\n    56→    if (userIndex === -1) return undefined;\n    57→\n    58→    this.users[userIndex] = {\n    59→      ...this.users[userIndex],\n    60→      ...updateUserDto,\n    61→      updatedAt: new Date().toISOString(),\n    62→    };\n    63→    return this.users[userIndex];\n    64→  }\n    65→\n    66→  remove(id: number): boolean {\n    67→    const userIndex = this.users.findIndex(user => user.id === id);\n    68→    if (userIndex === -1) return false;\n    69→\n    70→    this.users.splice(userIndex, 1);\n    71→    return true;\n    72→  }\n    73→\n    74→  /**\n    75→   * Lookup multiple users by their IDs with field selection.\n    76→   * @param query - The lookup query containing user IDs and field selection\n    77→   * @returns An array of users with only the selected fields populated\n    78→   */\n    79→  @RpcMethod()\n    80→  async lookupUsers<Select extends UserSelect>(\n    81→    query: LookupUsersQuery<Select>,\n    82→  ): Promise<LookupUsersResult<Select>> {\n    83→    const selectedUsers = this.users.filter(user =>\n    84→      query.userIds.includes(user.id)\n    85→    );\n    86→\n    87→    return {\n    88→      users: selectedUsers.map(user => {\n    89→        const result = {} as Partial<User>;\n    90→\n    91→        if (query.select.id) result.id = user.id;\n    92→        if (query.select.email) result.email = user.email;\n    93→        if (query.select.firstName) result.firstName = user.firstName;\n    94→        if (query.select.lastName) result.lastName = user.lastName;\n    95→        if (query.select.isActive) result.isActive = user.isActive;\n    96→        if (query.select.createdAt) result.createdAt = user.createdAt;\n    97→        if (query.select.updatedAt) result.updatedAt = user.updatedAt;\n    98→\n    99→        return result;\n   100→      }),\n   101→    } as LookupUsersResult<Select>\n   102→  }\n   103→}\n\n<system-reminder>\nWhenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.\n</system-reminder>\n",
+          "timestamp": "2025-11-17T17:17:43.099Z"
+        },
+        {
+          "type": "user",
+          "text": "/home/z/Desktop/work/nestjs-rpc-toolkit/examples/modules/auth-module/src/auth.service.ts\n/home/z/Desktop/work/nestjs-rpc-toolkit/examples/modules/user-module/src/user.service.ts\n/home/z/Desktop/work/nestjs-rpc-toolkit/examples/modules/messaging-module/src/messaging.service.ts",
+          "timestamp": "2025-11-17T17:17:43.138Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Read",
+          "input": {
+            "file_path": "/home/z/Desktop/work/nestjs-rpc-toolkit/examples/modules/user-module/package.json"
+          },
+          "timestamp": "2025-11-17T17:17:50.232Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Glob",
+          "input": {
+            "pattern": "examples/modules/*/package.json"
+          },
+          "timestamp": "2025-11-17T17:17:50.517Z"
+        },
+        {
+          "type": "user",
+          "text": "     1→{\n     2→  \"name\": \"@modules/user\",\n     3→  \"version\": \"1.0.0\",\n     4→  \"description\": \"User module for NestJS\",\n     5→  \"main\": \"dist/index.js\",\n     6→  \"types\": \"dist/index.d.ts\",\n     7→  \"scripts\": {\n     8→    \"build\": \"tsc\",\n     9→    \"dev\": \"tsc --watch\",\n    10→    \"start:microservice\": \"node dist/main.js\"\n    11→  },\n    12→  \"dependencies\": {\n    13→    \"@meetsmore/lib-rpc\": \"workspace:*\",\n    14→    \"@zdavison/nestjs-rpc-toolkit\": \"workspace:*\",\n    15→    \"@nestjs/common\": \"^10.0.0\",\n    16→    \"@nestjs/core\": \"^10.0.0\",\n    17→    \"@nestjs/microservices\": \"^10.0.0\",\n    18→    \"reflect-metadata\": \"^0.1.13\",\n    19→    \"rxjs\": \"^7.8.1\"\n    20→  },\n    21→  \"devDependencies\": {\n    22→    \"@types/node\": \"^20.0.0\",\n    23→    \"typescript\": \"^5.0.0\"\n    24→  },\n    25→  \"peerDependencies\": {\n    26→    \"@nestjs/common\": \"^10.0.0\",\n    27→    \"@nestjs/core\": \"^10.0.0\"\n    28→  }\n    29→}\n\n<system-reminder>\nWhenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.\n</system-reminder>\n",
+          "timestamp": "2025-11-17T17:17:50.653Z"
+        },
+        {
+          "type": "user",
+          "text": "/home/z/Desktop/work/nestjs-rpc-toolkit/examples/modules/user-module/package.json\n/home/z/Desktop/work/nestjs-rpc-toolkit/examples/modules/auth-module/package.json\n/home/z/Desktop/work/nestjs-rpc-toolkit/examples/modules/messaging-module/package.json",
+          "timestamp": "2025-11-17T17:17:50.693Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "TodoWrite",
+          "input": {
+            "todos": [
+              {
+                "activeForm": "Creating shared types package",
+                "content": "Create a shared types package with external types",
+                "status": "in_progress"
+              },
+              {
+                "activeForm": "Adding external type usage to RPC method",
+                "content": "Add external type usage to an RPC method in user module",
+                "status": "pending"
+              },
+              {
+                "activeForm": "Writing test case for external type import bug",
+                "content": "Write test case that reproduces the external type import bug",
+                "status": "pending"
+              },
+              {
+                "activeForm": "Running test to verify failure",
+                "content": "Run the test to verify it fails as expected",
+                "status": "pending"
+              }
+            ]
+          },
+          "timestamp": "2025-11-17T17:17:59.378Z"
+        },
+        {
+          "type": "user",
+          "text": "Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable",
+          "timestamp": "2025-11-17T17:17:59.543Z"
+        },
+        {
+          "type": "assistant",
+          "text": "Let me create a test that reproduces the bug where types imported from external packages aren't included in the generated output.",
+          "timestamp": "2025-11-17T17:18:03.270Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "ls examples/",
+            "description": "List examples directory contents"
+          },
+          "timestamp": "2025-11-17T17:18:03.960Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Bash",
+          "input": {
+            "command": "mkdir -p examples/shared/types/src",
+            "description": "Create shared types package directory"
+          },
+          "timestamp": "2025-11-17T17:18:04.452Z"
+        },
+        {
+          "type": "user",
+          "text": "apps\nlib-rpc\nmodules",
+          "timestamp": "2025-11-17T17:18:05.392Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Write",
+          "input": {
+            "content": "{\n  \"name\": \"@shared/types\",\n  \"version\": \"1.0.0\",\n  \"description\": \"Shared types for testing external type imports\",\n  \"main\": \"dist/index.js\",\n  \"types\": \"dist/index.d.ts\",\n  \"scripts\": {\n    \"build\": \"tsc\",\n    \"dev\": \"tsc --watch\"\n  },\n  \"devDependencies\": {\n    \"@types/node\": \"^20.0.0\",\n    \"typescript\": \"^5.0.0\"\n  }\n}\n",
+            "file_path": "/home/z/Desktop/work/nestjs-rpc-toolkit/examples/shared/types/package.json"
+          },
+          "timestamp": "2025-11-17T17:18:34.607Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Write",
+          "input": {
+            "content": "{\n  \"compilerOptions\": {\n    \"module\": \"commonjs\",\n    \"declaration\": true,\n    \"removeComments\": true,\n    \"emitDecoratorMetadata\": true,\n    \"experimentalDecorators\": true,\n    \"allowSyntheticDefaultImports\": true,\n    \"target\": \"ES2021\",\n    \"sourceMap\": true,\n    \"outDir\": \"./dist\",\n    \"baseUrl\": \"./\",\n    \"incremental\": true,\n    \"skipLibCheck\": true,\n    \"strictNullChecks\": false,\n    \"noImplicitAny\": false,\n    \"strictBindCallApply\": false,\n    \"forceConsistentCasingInFileNames\": false,\n    \"noFallthroughCasesInSwitch\": false\n  },\n  \"include\": [\"src/**/*\"],\n  \"exclude\": [\"node_modules\", \"dist\"]\n}\n",
+            "file_path": "/home/z/Desktop/work/nestjs-rpc-toolkit/examples/shared/types/tsconfig.json"
+          },
+          "timestamp": "2025-11-17T17:18:37.138Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Write",
+          "input": {
+            "content": "/**\n * Address information for a user\n */\nexport interface Address {\n  /** Street address line 1 */\n  street: string;\n  /** Street address line 2 (optional) */\n  street2?: string;\n  /** City name */\n  city: string;\n  /** State or province */\n  state: string;\n  /** Postal or ZIP code */\n  postalCode: string;\n  /** Country name */\n  country: string;\n}\n\n/**\n * Contact information\n */\nexport interface ContactInfo {\n  /** Primary phone number */\n  phone: string;\n  /** Alternative phone number */\n  alternatePhone?: string;\n  /** Physical address */\n  address: Address;\n}\n",
+            "file_path": "/home/z/Desktop/work/nestjs-rpc-toolkit/examples/shared/types/src/address.type.ts"
+          },
+          "timestamp": "2025-11-17T17:18:39.713Z"
+        },
+        {
+          "type": "tool_use",
+          "name": "Write",
+          "input": {
+            "content": "export * from './address.type';\n",
+            "file_path": "/home/z/Desktop/work/nestjs-rpc-toolkit/examples/shared/types/src/index.ts"
+          },
+          "timestamp": "2025-11-17T17:18:40.364Z"
+        }
+      ],
+      "total_additions": 498,
+      "total_deletions": 58,
+      "accepted_lines": 451,
+      "overriden_lines": 0
+    }
+  }
+}
