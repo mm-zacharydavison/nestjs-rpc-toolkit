@@ -15,8 +15,9 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "typescript": "^5.0.0",
-    "turbo": "^2.0.0"
+    "reflect-metadata": "^0.2.2",
+    "turbo": "^2.0.0",
+    "typescript": "^5.0.0"
   },
   "pnpm": {
     "overrides": {

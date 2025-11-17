@@ -115,7 +115,7 @@ class RpcPackageInitializer {
         "generate:types": "ts-node scripts/generate-all-rpc-types.ts"
       },
       dependencies: {
-        "@zdavison/nestjs-rpc-toolkit": "^0.0.12",
+        "@zdavison/nestjs-rpc-toolkit": "^0.0.13",
         "@nestjs/common": "^10.0.0",
         "@nestjs/microservices": "^10.0.0"
       },
@@ -134,8 +134,8 @@ class RpcPackageInitializer {
   private findRootTsConfig(): string | null {
     // Search for root tsconfig files starting from repo root
     const possiblePaths = [
-      'tsconfig.base.json',
-      'tsconfig.json'
+      'tsconfig.json',
+      'tsconfig.base.json'
     ];
 
     // Find git root or use current working directory

@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { rpcRegistry } from '@zdavison/nestjs-rpc-toolkit';
 // Import services to trigger decorator execution
 import '@modules/user/src/user.service';

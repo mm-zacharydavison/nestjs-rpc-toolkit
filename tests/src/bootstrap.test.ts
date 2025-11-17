@@ -28,7 +28,7 @@ describe('Bootstrap Script Integration Tests', () => {
     }
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      const bootstrapScript = path.join(originalCwd, '../packages/nestjs-rpc-toolkit/src/bin/bootstrap.ts');
+      const bootstrapScript = path.join(originalCwd, 'packages/nestjs-rpc-toolkit/src/bin/bootstrap.ts');
 
       const proc = spawn('npx', ['ts-node', bootstrapScript], {
         cwd: tempDir,
@@ -163,7 +163,7 @@ describe('Bootstrap Script Integration Tests', () => {
       const packageJsonPath = path.join(tempDir, 'packages/lib-rpc/package.json');
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
-      expect(packageJson.dependencies['@zdavison/nestjs-rpc-toolkit']).toBe('^0.0.12');
+      expect(packageJson.dependencies['@zdavison/nestjs-rpc-toolkit']).toBe('^0.0.13');
       expect(packageJson.dependencies['@nestjs/common']).toBe('^10.0.0');
       expect(packageJson.dependencies['@nestjs/microservices']).toBe('^10.0.0');
 

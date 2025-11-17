@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { RpcTypesGenerator } from '@zdavison/nestjs-rpc-toolkit';
 import * as path from 'path';
 import * as fs from 'fs';

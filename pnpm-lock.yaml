@@ -14,6 +14,9 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.17
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
       turbo:
         specifier: ^2.0.0
         version: 2.5.8
@@ -201,6 +204,9 @@ importers:
       glob:
         specifier: ^10.0.0
         version: 10.4.5
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
       rxjs:
         specifier: ^7.8.0
         version: 7.8.2

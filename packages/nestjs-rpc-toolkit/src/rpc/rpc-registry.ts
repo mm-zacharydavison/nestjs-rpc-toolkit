@@ -17,7 +17,17 @@ class RpcRegistry {
     if (!this.modulesMethods.has(metadata.module)) {
       this.modulesMethods.set(metadata.module, []);
     }
-    this.modulesMethods.get(metadata.module)!.push(metadata);
+
+    const moduleMethods = this.modulesMethods.get(metadata.module)!;
+    // Check if method with this pattern is already registered to avoid duplicates
+    const existingIndex = moduleMethods.findIndex(m => m.pattern === metadata.pattern);
+    if (existingIndex >= 0) {
+      // Update existing entry
+      moduleMethods[existingIndex] = metadata;
+    } else {
+      // Add new entry
+      moduleMethods.push(metadata);
+    }
   }
 
   getMethod(pattern: string): RpcMethodMetadata | undefined {

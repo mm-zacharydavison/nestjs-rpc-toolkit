@@ -3,6 +3,7 @@
  * all values can be transmitted across the new transport.
  **/
 
+import 'reflect-metadata';
 import { RpcMethod } from '@zdavison/nestjs-rpc-toolkit';
 import { AssertSerializable, SerializableJson } from '@zdavison/nestjs-rpc-toolkit/dist/types/serializable';
 
