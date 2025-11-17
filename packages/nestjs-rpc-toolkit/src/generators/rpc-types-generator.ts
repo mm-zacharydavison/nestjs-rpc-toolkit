@@ -32,10 +32,18 @@ interface InterfaceDefinition {
   jsDoc?: string;
 }
 
+interface EnumDefinition {
+  name: string;
+  source: string;
+  module: string;
+  jsDoc?: string;
+}
+
 export class RpcTypesGenerator {
   private projects: Map<string, Project> = new Map();
   private rpcMethods: RpcMethodInfo[] = [];
   private interfaces: Map<string, InterfaceDefinition> = new Map();
+  private enums: Map<string, EnumDefinition> = new Map();
   private config: RpcGenerationConfig;
   private packageFiles: Map<string, string[]> = new Map();
   private expandedPackages: string[] = [];
@@ -215,6 +223,8 @@ export class RpcTypesGenerator {
         this.extractClassAsInterface(node as any, sourceFile);
       } else if (node.getKind() === ts.SyntaxKind.TypeAliasDeclaration) {
         this.extractTypeAlias(node as any, sourceFile);
+      } else if (node.getKind() === ts.SyntaxKind.EnumDeclaration) {
+        this.extractEnum(node as any, sourceFile);
       }
     });
   }
@@ -313,6 +323,32 @@ export class RpcTypesGenerator {
 
     if (name && this.isRelevantInterface(name) && !this.isInternalType(name)) {
       this.interfaces.set(name, {
+        name,
+        source,
+        module: moduleName,
+        jsDoc
+      });
+    }
+  }
+
+  private extractEnum(enumDeclaration: any, sourceFile: SourceFile): void {
+    const name = enumDeclaration.getName();
+    let source = enumDeclaration.getText();
+    const moduleName = this.getModuleForFile(sourceFile.getFilePath());
+    const jsDoc = this.extractJsDoc(enumDeclaration);
+
+    // Ensure the source has export keyword
+    if (!source.startsWith('export ')) {
+      source = `export ${source}`;
+    }
+
+    // Prepend JSDoc if available
+    if (jsDoc) {
+      source = `${jsDoc}\n${source}`;
+    }
+
+    if (name && !this.isInternalType(name)) {
+      this.enums.set(name, {
         name,
         source,
         module: moduleName,
@@ -475,16 +511,30 @@ export class RpcTypesGenerator {
       interfacesByModule.get(interfaceDef.module)!.push(interfaceDef);
     });
 
+    // Group enums by module
+    const enumsByModule = new Map<string, EnumDefinition[]>();
+    this.enums.forEach(enumDef => {
+      if (!enumsByModule.has(enumDef.module)) {
+        enumsByModule.set(enumDef.module, []);
+      }
+      enumsByModule.get(enumDef.module)!.push(enumDef);
+    });
+
     // Generate separate file for each module
     Object.entries(moduleGroups).forEach(([moduleName, methods]) => {
-      this.generateModuleTypesFile(moduleName, methods, interfacesByModule.get(moduleName) || []);
+      this.generateModuleTypesFile(
+        moduleName,
+        methods,
+        interfacesByModule.get(moduleName) || [],
+        enumsByModule.get(moduleName) || []
+      );
     });
 
     // Generate the main types file that composes all modules
     this.generateMainTypesFile(moduleGroups);
   }
 
-  private generateModuleTypesFile(moduleName: string, methods: RpcMethodInfo[], interfaces: InterfaceDefinition[]): void {
+  private generateModuleTypesFile(moduleName: string, methods: RpcMethodInfo[], interfaces: InterfaceDefinition[], enums: EnumDefinition[]): void {
     // Collect all type names referenced in RPC methods
     const referencedTypes = new Set<string>();
     const genericTypeParamNames = new Set<string>();
@@ -527,6 +577,23 @@ export class RpcTypesGenerator {
       }
     });
 
+    // Include enums that are actually referenced, from this module or others
+    const referencedEnums: EnumDefinition[] = [];
+
+    // First add enums from this module
+    enums.filter(enumDef =>
+      referencedTypes.has(enumDef.name)
+    ).forEach(enumDef => referencedEnums.push(enumDef));
+
+    // Then add enums from other modules that are referenced
+    this.enums.forEach(enumDef => {
+      if (referencedTypes.has(enumDef.name) &&
+          enumDef.module !== moduleName &&
+          !referencedEnums.some(existing => existing.name === enumDef.name)) {
+        referencedEnums.push(enumDef);
+      }
+    });
+
     // Include interfaces that are actually referenced, from this module or others
     const referencedInterfaces: InterfaceDefinition[] = [];
 
@@ -544,6 +611,25 @@ export class RpcTypesGenerator {
       }
     });
 
+    // Scan referenced interfaces for additional type dependencies (like enums used in interface properties)
+    referencedInterfaces.forEach(interfaceDef => {
+      this.extractTypeNames(interfaceDef.source).forEach(typeName => {
+        if (!genericTypeParamNames.has(typeName)) {
+          referencedTypes.add(typeName);
+        }
+      });
+    });
+
+    // Re-check enums after scanning interfaces for dependencies
+    this.enums.forEach(enumDef => {
+      if (referencedTypes.has(enumDef.name) &&
+          !referencedEnums.some(existing => existing.name === enumDef.name)) {
+        referencedEnums.push(enumDef);
+      }
+    });
+
+    // Enums should come before interfaces that use them
+    const moduleEnums = referencedEnums.map(enumDef => enumDef.source).join('\n\n');
     const moduleInterfaces = referencedInterfaces.map(interfaceDef => interfaceDef.source).join('\n\n');
 
     // Generate domain interface for this module
@@ -562,13 +648,16 @@ export interface ${this.toCamelCase(moduleName)}Domain {
 ${domainMethodDefinitions}
 }`;
 
+    // Build file content with enums before interfaces
+    const typesSection = [moduleEnums, moduleInterfaces].filter(section => section.length > 0).join('\n\n');
+
     const fileContent = `// Auto-generated RPC types for ${moduleName.charAt(0).toUpperCase() + moduleName.slice(1)} module
 // Do not edit this file manually - it will be overwritten
 //
 // IMPORTANT: All types must be JSON-serializable for TCP transport when extracted to microservices
 
 // ${moduleName.charAt(0).toUpperCase() + moduleName.slice(1)} module types
-${moduleInterfaces}
+${typesSection}
 
 ${domainInterface}
 `;

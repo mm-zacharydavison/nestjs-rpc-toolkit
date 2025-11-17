@@ -1,7 +1,8 @@
 {
   "packages": [
     "examples/modules/user-module",
-    "examples/modules/auth-module"
+    "examples/modules/auth-module",
+    "examples/modules/messaging-module"
   ],
   "outputDir": "examples/lib-rpc/src"
 }

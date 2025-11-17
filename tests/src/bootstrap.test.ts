@@ -163,7 +163,7 @@ describe('Bootstrap Script Integration Tests', () => {
       const packageJsonPath = path.join(tempDir, 'packages/lib-rpc/package.json');
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
-      expect(packageJson.dependencies['@zdavison/nestjs-rpc-toolkit']).toBe('^0.0.14');
+      expect(packageJson.dependencies['@zdavison/nestjs-rpc-toolkit']).toBe('^0.0.15');
       expect(packageJson.dependencies['@nestjs/common']).toBe('^10.0.0');
       expect(packageJson.dependencies['@nestjs/microservices']).toBe('^10.0.0');
 

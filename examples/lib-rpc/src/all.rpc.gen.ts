@@ -8,10 +8,12 @@
 
 import { UserDomain, CreateUserDto, User, LookupUsersQuery, LookupUsersResult, UserSelect } from './user.rpc.gen';
 import { AuthDomain, RegisterDto } from './auth.rpc.gen';
+import { MessagingDomain, IncomingMessage, QueuedMessage } from './messaging.rpc.gen';
 
 // Re-export domain interfaces and types
 export { UserDomain, CreateUserDto, User, LookupUsersQuery, LookupUsersResult, UserSelect } from './user.rpc.gen';
 export { AuthDomain, RegisterDto } from './auth.rpc.gen';
+export { MessagingDomain, IncomingMessage, QueuedMessage } from './messaging.rpc.gen';
 
 // Re-export common types from their primary modules
 
@@ -22,6 +24,8 @@ export type AllRpcMethods = {
   'user.lookupUsers': { params: { query: LookupUsersQuery<any> }; returns: LookupUsersResult<any> };
   'auth.register': { params: { registerDto: RegisterDto }; returns: { accessToken: string; user: { id: string; email: string; }; } };
   'auth.getUserEmailsById': { params: { userIds: number[] }; returns: string[] };
+  'messaging.queueMessage': { params: { message: IncomingMessage }; returns: QueuedMessage };
+  'messaging.getQueueStatus': { params: {}; returns: { connected: boolean; service: string; queueLength: number; } };
 };
 
 
@@ -29,6 +33,7 @@ export type AllRpcMethods = {
 export interface IRpcClient {
   user: UserDomain;
   auth: AuthDomain;
+  messaging: MessagingDomain;
 }
 
 // Usage examples:
