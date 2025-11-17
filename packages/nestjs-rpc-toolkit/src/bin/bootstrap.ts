@@ -115,7 +115,7 @@ class RpcPackageInitializer {
         "generate:types": "ts-node scripts/generate-all-rpc-types.ts"
       },
       dependencies: {
-        "@zdavison/nestjs-rpc-toolkit": "^0.0.13",
+        "@zdavison/nestjs-rpc-toolkit": "^0.0.14",
         "@nestjs/common": "^10.0.0",
         "@nestjs/microservices": "^10.0.0"
       },

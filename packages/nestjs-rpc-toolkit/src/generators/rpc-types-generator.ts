@@ -684,6 +684,12 @@ ${domainInterface}
     // Generate common type re-exports from their original modules
     const commonTypeExports = this.generateCommonTypeExports(moduleGroups);
 
+    // Generate AllRpcMethods type for MessageBus
+    const allRpcMethodsType = hasModules
+      ? this.generateAllRpcMethodsType(moduleGroups)
+      : `// Empty type mapping for RPC methods (no methods found yet)
+export type AllRpcMethods = {};`;
+
     // Generate RPC client interface using imported domain interfaces
     // Always export IRpcClient to avoid import errors, even when empty
     const rpcClientInterface = hasModules ? `
@@ -714,6 +720,9 @@ ${moduleReExports}
 
 // Re-export common types from their primary modules
 ${commonTypeExports}
+
+${allRpcMethodsType}
+
 ${rpcClientInterface}
 
 // Usage examples:
@@ -883,5 +892,47 @@ ${rpcClientInterface}
     });
 
     return exports.join('\n');
+  }
+
+  private generateAllRpcMethodsType(moduleGroups: Record<string, RpcMethodInfo[]>): string {
+    const methodEntries: string[] = [];
+
+    Object.values(moduleGroups).forEach(methods => {
+      methods.forEach(method => {
+        // For AllRpcMethods type, we need to replace generic type parameters with 'any'
+        // since this is a flat type mapping and can't have generic parameters
+        const genericTypeParamNames = new Set<string>();
+        if (method.typeParameters) {
+          method.typeParameters.forEach(typeParam => {
+            const paramName = typeParam.split(' ')[0];
+            genericTypeParamNames.add(paramName);
+          });
+        }
+
+        // Replace generic type parameters in params
+        let paramsType = this.generateParamsType(method.paramTypes);
+        genericTypeParamNames.forEach(paramName => {
+          paramsType = paramsType.replace(new RegExp(`\\b${paramName}\\b`, 'g'), 'any');
+        });
+
+        // Replace generic type parameters in return type
+        let returnType = method.returnType;
+        genericTypeParamNames.forEach(paramName => {
+          returnType = returnType.replace(new RegExp(`\\b${paramName}\\b`, 'g'), 'any');
+        });
+
+        methodEntries.push(`  '${method.pattern}': { params: ${paramsType}; returns: ${returnType} };`);
+      });
+    });
+
+    if (methodEntries.length === 0) {
+      return `// Type mapping for RPC methods and their signatures
+export type AllRpcMethods = {};`;
+    }
+
+    return `// Type mapping for RPC methods and their signatures
+export type AllRpcMethods = {
+${methodEntries.join('\n')}
+};`;
   }
 }

@@ -16,6 +16,15 @@ export { AuthDomain, RegisterDto } from './auth.rpc.gen';
 // Re-export common types from their primary modules
 
 
+// Type mapping for RPC methods and their signatures
+export type AllRpcMethods = {
+  'user.create': { params: { createUserDto: CreateUserDto }; returns: User };
+  'user.lookupUsers': { params: { query: LookupUsersQuery<any> }; returns: LookupUsersResult<any> };
+  'auth.register': { params: { registerDto: RegisterDto }; returns: { accessToken: string; user: { id: string; email: string; }; } };
+  'auth.getUserEmailsById': { params: { userIds: number[] }; returns: string[] };
+};
+
+
 // Domain-scoped RPC client interface
 export interface IRpcClient {
   user: UserDomain;
