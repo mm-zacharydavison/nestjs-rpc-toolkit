@@ -6,3 +6,4 @@ export * from './rpc/rpc-registry';
 export * from './rpc/rpc-client';
 export * from './transport';
 export * from './generators/rpc-types-generator';
+export * from './utils/package-manager.utils';

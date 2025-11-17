@@ -3,6 +3,8 @@
 //
 // IMPORTANT: All types must be JSON-serializable for TCP transport when extracted to microservices
 
+import { ContactInfo } from '@shared/types';
+
 // User module types
 /**
  * DTO for creating a new user
@@ -37,6 +39,26 @@ export interface LookupUsersResult<Select extends UserSelect = UserSelect> {
     User,
     Extract<{ [K in keyof Select]: Select[K] extends true ? K : never }[keyof Select], keyof User>
   >[];
+}
+
+/**
+ * DTO for updating user contact information
+ */
+export interface UpdateUserContactDto {
+  /** User ID to update */
+  userId: number;
+  /** Contact information from external package */
+  contactInfo: ContactInfo;
+}
+
+/**
+ * Response after updating user contact information
+ */
+export interface UpdateUserContactResponse {
+  /** Whether the update was successful */
+  success: boolean;
+  /** The updated contact information */
+  contactInfo: ContactInfo;
 }
 
 /**
@@ -77,4 +99,10 @@ export interface UserDomain {
    * @returns An array of users with only the selected fields populated
    */
   lookupUsers<Select extends UserSelect>(params: { query: LookupUsersQuery<Select> }): Promise<LookupUsersResult<Select>>;
+/**
+   * Update user contact information using an external type from @shared/types.
+   * @param dto - The contact update payload with ContactInfo from external package
+   * @returns The update response containing the ContactInfo type
+   */
+  updateContact(params: { dto: UpdateUserContactDto }): Promise<UpdateUserContactResponse>;
 }

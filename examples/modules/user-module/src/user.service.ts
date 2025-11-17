@@ -5,6 +5,7 @@ import { User, UserSelect } from './entities/user.entity';
 import { RpcController, RpcMethod } from '@zdavison/nestjs-rpc-toolkit';
 import { IRpcClient } from '@meetsmore/lib-rpc';
 import { LookupUsersQuery, LookupUsersResult } from './dto/lookup-users.dto';
+import { UpdateUserContactDto, UpdateUserContactResponse } from './dto/update-user-contact.dto';
 
 @Injectable()
 @RpcController()
@@ -99,5 +100,19 @@ export class UserService {
         return result;
       }),
     } as LookupUsersResult<Select>
+  }
+
+  /**
+   * Update user contact information using an external type from @shared/types.
+   * @param dto - The contact update payload with ContactInfo from external package
+   * @returns The update response containing the ContactInfo type
+   */
+  @RpcMethod()
+  async updateContact(dto: UpdateUserContactDto): Promise<UpdateUserContactResponse> {
+    // Mock implementation - in reality would update user contact info
+    return {
+      success: true,
+      contactInfo: dto.contactInfo
+    };
   }
 }

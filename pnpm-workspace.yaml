@@ -2,5 +2,6 @@ packages:
   - 'examples/apps/*'
   - 'examples/modules/*'
   - 'examples/lib-rpc'
+  - 'examples/shared/*'
   - 'packages/*'
   - 'tests'

@@ -2,6 +2,7 @@ import { Project, SourceFile, MethodDeclaration, ts } from 'ts-morph';
 import * as path from 'path';
 import * as fs from 'fs';
 import { glob } from 'glob';
+import { detectPackageManager } from '../utils/package-manager.utils';
 
 export interface RpcGenerationConfig {
   /** Package paths to scan for RPC methods. Supports glob patterns like 'packages/modules/*' */
@@ -48,6 +49,12 @@ export class RpcTypesGenerator {
   private packageFiles: Map<string, string[]> = new Map();
   private expandedPackages: string[] = [];
   private fileToModuleMap: Map<string, string> = new Map();
+  // Map of type name -> package it's imported from
+  private typeToPackageMap: Map<string, string> = new Map();
+  // Set of all external packages that are imported in generated files
+  private externalPackagesUsed: Set<string> = new Set();
+  // Map of package name -> version (from source package.json files)
+  private packageVersionMap: Map<string, string> = new Map();
 
   constructor(private options: GeneratorOptions) {
     // Load configuration
@@ -216,6 +223,9 @@ export class RpcTypesGenerator {
   }
 
   private extractTypesFromFile(sourceFile: SourceFile): void {
+    // First, extract import information
+    this.extractImports(sourceFile);
+
     sourceFile.forEachDescendant((node) => {
       if (node.getKind() === ts.SyntaxKind.InterfaceDeclaration) {
         this.extractInterface(node as any, sourceFile);
@@ -229,11 +239,77 @@ export class RpcTypesGenerator {
     });
   }
 
+  private extractImports(sourceFile: SourceFile): void {
+    const importDeclarations = sourceFile.getImportDeclarations();
+
+    importDeclarations.forEach(importDecl => {
+      const moduleSpecifier = importDecl.getModuleSpecifierValue();
+
+      // Only track imports from packages (not relative imports)
+      if (!moduleSpecifier.startsWith('.') && !moduleSpecifier.startsWith('/')) {
+        const namedImports = importDecl.getNamedImports();
+
+        namedImports.forEach(namedImport => {
+          const importedName = namedImport.getName();
+          this.typeToPackageMap.set(importedName, moduleSpecifier);
+        });
+
+        // Try to resolve package version from the source file's package.json
+        if (!this.packageVersionMap.has(moduleSpecifier)) {
+          const version = this.resolvePackageVersion(sourceFile.getFilePath(), moduleSpecifier);
+          if (version) {
+            this.packageVersionMap.set(moduleSpecifier, version);
+          }
+        }
+      }
+    });
+  }
+
+  private resolvePackageVersion(sourceFilePath: string, packageName: string): string | null {
+    // Walk up from the source file to find package.json
+    let currentDir = path.dirname(sourceFilePath);
+
+    while (currentDir !== path.dirname(currentDir)) { // Stop at root
+      const packageJsonPath = path.join(currentDir, 'package.json');
+
+      if (fs.existsSync(packageJsonPath)) {
+        try {
+          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+          // Check dependencies and devDependencies
+          const version = packageJson.dependencies?.[packageName] ||
+                         packageJson.devDependencies?.[packageName];
+
+          if (version) {
+            return version;
+          }
+        } catch (error) {
+          // Ignore and continue searching
+        }
+      }
+
+      currentDir = path.dirname(currentDir);
+    }
+
+    return null;
+  }
+
   private extractInterface(interfaceDeclaration: any, sourceFile: SourceFile): void {
     const name = interfaceDeclaration.getName();
-    const source = interfaceDeclaration.getText();
-    const moduleName = this.getModuleForFile(sourceFile.getFilePath());
     const jsDoc = this.extractJsDoc(interfaceDeclaration);
+    let source = interfaceDeclaration.getText();
+
+    // Prepend JSDoc if available and not already in source
+    if (jsDoc && !source.startsWith('/**')) {
+      source = `${jsDoc}\n${source}`;
+    }
+
+    // Ensure the source has export keyword
+    if (!source.includes('export interface')) {
+      source = source.replace(/^(\/\*\*[\s\S]*?\*\/\n)?interface/, '$1export interface');
+    }
+
+    const moduleName = this.getModuleForFile(sourceFile.getFilePath());
 
     if (name && this.isRelevantInterface(name) && !this.isInternalType(name)) {
       this.interfaces.set(name, {
@@ -388,6 +464,60 @@ export class RpcTypesGenerator {
            name === 'RpcMethodInfo' ||
            name === 'RpcGenerationConfig' ||
            name === 'GeneratorOptions';
+  }
+
+  private collectExternalImports(referencedTypes: Set<string>, genericTypeParamNames: Set<string>): Map<string, Set<string>> {
+    // Map of package name -> Set of type names to import from that package
+    const externalImports = new Map<string, Set<string>>();
+    const typesToCheck = new Set(referencedTypes);
+    const checkedTypes = new Set<string>();
+
+    // Recursively collect all external types and their dependencies
+    while (typesToCheck.size > 0) {
+      const currentType = Array.from(typesToCheck)[0];
+      typesToCheck.delete(currentType);
+      checkedTypes.add(currentType);
+
+      // Skip if it's a built-in type, generic parameter, or internal type
+      if (this.isBuiltInType(currentType) || genericTypeParamNames.has(currentType) || this.isInternalType(currentType)) {
+        continue;
+      }
+
+      // Check if this type is defined locally (in our interfaces or enums)
+      const isLocalType = this.interfaces.has(currentType) || this.enums.has(currentType);
+
+      if (!isLocalType && this.typeToPackageMap.has(currentType)) {
+        // This is an external type - add to imports
+        const packageName = this.typeToPackageMap.get(currentType)!;
+        if (!externalImports.has(packageName)) {
+          externalImports.set(packageName, new Set());
+        }
+        externalImports.get(packageName)!.add(currentType);
+
+        // Check if any of our source interfaces reference this type and extract nested types
+        this.interfaces.forEach(interfaceDef => {
+          if (interfaceDef.source.includes(currentType)) {
+            this.extractTypeNames(interfaceDef.source).forEach(nestedType => {
+              if (!checkedTypes.has(nestedType) && !genericTypeParamNames.has(nestedType)) {
+                typesToCheck.add(nestedType);
+              }
+            });
+          }
+        });
+      } else if (isLocalType) {
+        // This is a local type - check if it references other external types
+        const localDef = this.interfaces.get(currentType) || this.enums.get(currentType);
+        if (localDef) {
+          this.extractTypeNames(localDef.source).forEach(nestedType => {
+            if (!checkedTypes.has(nestedType) && !genericTypeParamNames.has(nestedType)) {
+              typesToCheck.add(nestedType);
+            }
+          });
+        }
+      }
+    }
+
+    return externalImports;
   }
 
   private processMethod(method: MethodDeclaration, sourceFile: SourceFile): RpcMethodInfo | null {
@@ -577,6 +707,9 @@ export class RpcTypesGenerator {
       }
     });
 
+    // Collect external type imports needed
+    const externalImports = this.collectExternalImports(referencedTypes, genericTypeParamNames);
+
     // Include enums that are actually referenced, from this module or others
     const referencedEnums: EnumDefinition[] = [];
 
@@ -651,12 +784,22 @@ ${domainMethodDefinitions}
     // Build file content with enums before interfaces
     const typesSection = [moduleEnums, moduleInterfaces].filter(section => section.length > 0).join('\n\n');
 
+    // Generate import statements for external types
+    const importStatements: string[] = [];
+    externalImports.forEach((types, packageName) => {
+      const sortedTypes = Array.from(types).sort();
+      importStatements.push(`import { ${sortedTypes.join(', ')} } from '${packageName}';`);
+      // Track that this external package is used
+      this.externalPackagesUsed.add(packageName);
+    });
+    const importsSection = importStatements.length > 0 ? importStatements.join('\n') + '\n\n' : '';
+
     const fileContent = `// Auto-generated RPC types for ${moduleName.charAt(0).toUpperCase() + moduleName.slice(1)} module
 // Do not edit this file manually - it will be overwritten
 //
 // IMPORTANT: All types must be JSON-serializable for TCP transport when extracted to microservices
 
-// ${moduleName.charAt(0).toUpperCase() + moduleName.slice(1)} module types
+${importsSection}// ${moduleName.charAt(0).toUpperCase() + moduleName.slice(1)} module types
 ${typesSection}
 
 ${domainInterface}
@@ -843,6 +986,82 @@ ${rpcClientInterface}
         console.log(`   📄 ${module}: ${methods.length} methods`);
       });
     }
+
+    // Update output package.json with missing dependencies
+    this.updateOutputPackageJson();
+  }
+
+  private updateOutputPackageJson(): void {
+    if (this.externalPackagesUsed.size === 0) {
+      return; // No external packages to add
+    }
+
+    // Find the package.json for the output directory
+    const outputDir = path.join(this.options.rootDir, this.config.outputDir);
+    const packageJsonPath = this.findPackageJsonForOutput(outputDir);
+
+    if (!packageJsonPath) {
+      console.log(`⚠️  Could not find package.json for output directory ${this.config.outputDir}`);
+      console.log(`   External packages used: ${Array.from(this.externalPackagesUsed).join(', ')}`);
+      return;
+    }
+
+    try {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+      const dependencies = packageJson.dependencies || {};
+      const missingDeps: string[] = [];
+      const addedDeps: Record<string, string> = {};
+
+      // Check which external packages are missing
+      this.externalPackagesUsed.forEach(packageName => {
+        if (!dependencies[packageName]) {
+          missingDeps.push(packageName);
+          const version = this.packageVersionMap.get(packageName) || 'workspace:*';
+          addedDeps[packageName] = version;
+          dependencies[packageName] = version;
+        }
+      });
+
+      if (missingDeps.length > 0) {
+        // Update package.json with new dependencies
+        packageJson.dependencies = dependencies;
+
+        // Write back to file with proper formatting
+        fs.writeFileSync(
+          packageJsonPath,
+          JSON.stringify(packageJson, null, 2) + '\n',
+          'utf-8'
+        );
+
+        console.log(`📦 Updated ${path.relative(this.options.rootDir, packageJsonPath)} with missing dependencies:`);
+        missingDeps.forEach(dep => {
+          console.log(`   ✓ ${dep}@${addedDeps[dep]}`);
+        });
+
+        // Detect package manager and show appropriate install command
+        const packageManager = detectPackageManager(this.options.rootDir);
+        console.log(`\n⚠️  Please run '${packageManager} install' to install the new dependencies before building.\n`);
+      }
+    } catch (error) {
+      console.error(`❌ Error updating package.json: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  private findPackageJsonForOutput(outputDir: string): string | null {
+    // Walk up from output directory to find package.json
+    let currentDir = outputDir;
+
+    while (currentDir !== path.dirname(currentDir)) { // Stop at root
+      const packageJsonPath = path.join(currentDir, 'package.json');
+
+      if (fs.existsSync(packageJsonPath)) {
+        return packageJsonPath;
+      }
+
+      currentDir = path.dirname(currentDir);
+    }
+
+    return null;
   }
 
   private generateParamsType(params: { name: string; type: string }[]): string {

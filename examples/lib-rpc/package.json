@@ -13,7 +13,8 @@
   "dependencies": {
     "@nestjs/common": "^10.0.0",
     "@nestjs/microservices": "^10.0.0",
-    "@zdavison/nestjs-rpc-toolkit": "workspace:*"
+    "@zdavison/nestjs-rpc-toolkit": "workspace:*",
+    "@shared/types": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.5.1",

@@ -13,6 +13,9 @@ export enum MessageSource {
   SMS = 'sms',
 }
 
+/**
+ * An incoming message from a user
+ */
 export interface IncomingMessage {
   /** Unique identifier for the message */
   id: string;
@@ -32,6 +35,9 @@ export interface IncomingMessage {
   metadata: Record<string, string | number | boolean | null> | null;
 }
 
+/**
+ * A queued message waiting to be processed
+ */
 export interface QueuedMessage extends IncomingMessage {
   /** ISO 8601 timestamp when the message was queued */
   queuedAt: string;
