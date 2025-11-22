@@ -10,6 +10,20 @@ export class InProcessTransportStrategy extends Server implements CustomTranspor
     return InProcessTransportStrategy.instance;
   }
 
+  // Required for NestJS v11 compatibility
+  on<EventKey extends string = string, EventCallback extends Function = Function>(
+    _event: EventKey,
+    _callback: EventCallback,
+  ): any {
+    // In-process transport doesn't emit events, but we implement this for compatibility
+  }
+
+  // Required for NestJS v11 compatibility
+  unwrap<T>(): T {
+    // Return this instance as the underlying "server"
+    return this as unknown as T;
+  }
+
   listen(callback: () => void): void {
     callback();
   }

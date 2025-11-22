@@ -28,11 +28,27 @@ describe('Bootstrap Script Integration Tests', () => {
     }
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      const bootstrapScript = path.join(originalCwd, 'packages/nestjs-rpc-toolkit/src/bin/bootstrap.ts');
+      // originalCwd is tests directory, go up one level to monorepo root
+      const monorepoRoot = path.join(originalCwd, '..');
+      const bootstrapScript = path.join(monorepoRoot, 'packages/nestjs-rpc-toolkit/src/bin/bootstrap.ts');
 
-      const proc = spawn('npx', ['ts-node', bootstrapScript], {
+      const proc = spawn('node', [
+        '--require', 'ts-node/register',
+        '--no-warnings',
+        bootstrapScript
+      ], {
         cwd: tempDir,
         stdio: ['pipe', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          TS_NODE_TRANSPILE_ONLY: 'true',
+          TS_NODE_COMPILER_OPTIONS: JSON.stringify({
+            module: 'commonjs',
+            target: 'es2020',
+            esModuleInterop: true,
+            skipLibCheck: true
+          })
+        }
       });
 
       let stdout = '';
@@ -163,9 +179,9 @@ describe('Bootstrap Script Integration Tests', () => {
       const packageJsonPath = path.join(tempDir, 'packages/lib-rpc/package.json');
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
-      expect(packageJson.dependencies['@zdavison/nestjs-rpc-toolkit']).toBe('^0.0.15');
-      expect(packageJson.dependencies['@nestjs/common']).toBe('^10.0.0');
-      expect(packageJson.dependencies['@nestjs/microservices']).toBe('^10.0.0');
+      expect(packageJson.dependencies['@zdavison/nestjs-rpc-toolkit']).toBe('^0.1.0');
+      expect(packageJson.dependencies['@nestjs/common']).toBe('^11.0.0');
+      expect(packageJson.dependencies['@nestjs/microservices']).toBe('^11.0.0');
 
       expect(packageJson.devDependencies.typescript).toBe('^5.0.0');
       expect(packageJson.devDependencies['ts-node']).toBe('^10.9.0');

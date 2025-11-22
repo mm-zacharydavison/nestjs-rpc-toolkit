@@ -115,9 +115,9 @@ class RpcPackageInitializer {
         "generate:types": "ts-node scripts/generate-all-rpc-types.ts"
       },
       dependencies: {
-        "@zdavison/nestjs-rpc-toolkit": "^0.0.15",
-        "@nestjs/common": "^10.0.0",
-        "@nestjs/microservices": "^10.0.0"
+        "@zdavison/nestjs-rpc-toolkit": "^0.1.0",
+        "@nestjs/common": "^11.0.0",
+        "@nestjs/microservices": "^11.0.0"
       },
       devDependencies: {
         "@types/node": "^24.5.1",
@@ -261,7 +261,7 @@ export interface ITypedMessageBus extends IMessageBus<AllRpcMethods> {}
 
 @Injectable()
 export class MessageBus extends BaseMessageBus<AllRpcMethods> implements ITypedMessageBus {
-  constructor(client: ClientProxy) {
+  constructor(client: ClientProxy<any, any>) {
     super(client);
   }
 }

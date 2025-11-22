@@ -31,7 +31,7 @@ export interface IMessageBus<TRpcMethods = any> {
 
 @Injectable()
 export class MessageBus<TRpcMethods = any> implements IMessageBus<TRpcMethods> {
-  constructor(private readonly client: ClientProxy) {}
+  constructor(private readonly client: ClientProxy<any, any>) {}
 
   async send<TPattern extends keyof TRpcMethods>(
     pattern: TPattern,
