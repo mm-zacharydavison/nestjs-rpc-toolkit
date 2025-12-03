@@ -21,27 +21,6 @@ export interface CreateUserDto {
 }
 
 /**
- * Query parameters for looking up multiple users by ID with field selection
- */
-export interface LookupUsersQuery<Select extends UserSelect = UserSelect> {
-/** Array of user IDs to look up */
-  userIds: number[];
-/** Field selection object specifying which fields to return */
-  select: Select;
-}
-
-/**
- * Result of a lookup users query with selected fields
- */
-export interface LookupUsersResult<Select extends UserSelect = UserSelect> {
-/** Array of users with only the selected fields populated */
-  users: Pick<
-    User,
-    Extract<{ [K in keyof Select]: Select[K] extends true ? K : never }[keyof Select], keyof User>
-  >[];
-}
-
-/**
  * DTO for updating user contact information
  */
 export interface UpdateUserContactDto {
@@ -83,6 +62,27 @@ export interface User {
 
 export type UserSelect = {
   [K in keyof User]?: boolean;
+}
+
+/**
+ * Query parameters for looking up multiple users by ID with field selection
+ */
+export interface LookupUsersQuery<Select extends UserSelect = UserSelect> {
+/** Array of user IDs to look up */
+  userIds: number[];
+/** Field selection object specifying which fields to return */
+  select: Select;
+}
+
+/**
+ * Result of a lookup users query with selected fields
+ */
+export interface LookupUsersResult<Select extends UserSelect = UserSelect> {
+/** Array of users with only the selected fields populated */
+  users: Pick<
+    User,
+    Extract<{ [K in keyof Select]: Select[K] extends true ? K : never }[keyof Select], keyof User>
+  >[];
 }
 
 // Domain interface for user module

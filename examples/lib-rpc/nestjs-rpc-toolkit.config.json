@@ -2,7 +2,8 @@
   "packages": [
     "examples/modules/user-module",
     "examples/modules/auth-module",
-    "examples/modules/messaging-module"
+    "examples/modules/messaging-module",
+    "examples/modules/forms-module"
   ],
   "outputDir": "examples/lib-rpc/src"
 }

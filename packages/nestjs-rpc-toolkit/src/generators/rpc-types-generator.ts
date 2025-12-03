@@ -664,7 +664,7 @@ export class RpcTypesGenerator {
     this.generateMainTypesFile(moduleGroups);
   }
 
-  private generateModuleTypesFile(moduleName: string, methods: RpcMethodInfo[], interfaces: InterfaceDefinition[], enums: EnumDefinition[]): void {
+  private generateModuleTypesFile(moduleName: string, methods: RpcMethodInfo[], _interfaces: InterfaceDefinition[], _enums: EnumDefinition[]): void {
     // Collect all type names referenced in RPC methods
     const referencedTypes = new Set<string>();
     const genericTypeParamNames = new Set<string>();
@@ -707,63 +707,75 @@ export class RpcTypesGenerator {
       }
     });
 
+    // Recursively collect all transitive type dependencies (interfaces, type aliases, and enums)
+    // Keep iterating until no new types are discovered
+    const collectedTypes = new Set<string>();
+    let typesToProcess = new Set(referencedTypes);
+
+    while (typesToProcess.size > 0) {
+      const newTypesToProcess = new Set<string>();
+
+      typesToProcess.forEach(typeName => {
+        if (collectedTypes.has(typeName) || genericTypeParamNames.has(typeName)) {
+          return;
+        }
+        collectedTypes.add(typeName);
+
+        // Check if this type is defined locally (interface or type alias)
+        const interfaceDef = this.interfaces.get(typeName);
+        if (interfaceDef) {
+          // Extract all type references from this interface/type alias source
+          this.extractTypeNames(interfaceDef.source).forEach(nestedType => {
+            if (!collectedTypes.has(nestedType) && !genericTypeParamNames.has(nestedType)) {
+              newTypesToProcess.add(nestedType);
+            }
+          });
+        }
+
+        // Check if this type is an enum
+        const enumDef = this.enums.get(typeName);
+        if (enumDef) {
+          // Enums don't have nested type references, but mark as collected
+        }
+      });
+
+      typesToProcess = newTypesToProcess;
+    }
+
+    // Update referencedTypes with all collected types
+    collectedTypes.forEach(t => referencedTypes.add(t));
+
     // Collect external type imports needed
     const externalImports = this.collectExternalImports(referencedTypes, genericTypeParamNames);
 
     // Include enums that are actually referenced, from this module or others
     const referencedEnums: EnumDefinition[] = [];
 
-    // First add enums from this module
-    enums.filter(enumDef =>
-      referencedTypes.has(enumDef.name)
-    ).forEach(enumDef => referencedEnums.push(enumDef));
-
-    // Then add enums from other modules that are referenced
+    // Add all referenced enums
     this.enums.forEach(enumDef => {
       if (referencedTypes.has(enumDef.name) &&
-          enumDef.module !== moduleName &&
           !referencedEnums.some(existing => existing.name === enumDef.name)) {
         referencedEnums.push(enumDef);
       }
     });
 
-    // Include interfaces that are actually referenced, from this module or others
+    // Include interfaces/type aliases that are actually referenced, from this module or others
     const referencedInterfaces: InterfaceDefinition[] = [];
 
-    // First add interfaces from this module
-    interfaces.filter(interfaceDef =>
-      referencedTypes.has(interfaceDef.name)
-    ).forEach(interfaceDef => referencedInterfaces.push(interfaceDef));
-
-    // Then add interfaces from other modules that are referenced
+    // Add all referenced interfaces/type aliases
     this.interfaces.forEach(interfaceDef => {
       if (referencedTypes.has(interfaceDef.name) &&
-          interfaceDef.module !== moduleName &&
           !referencedInterfaces.some(existing => existing.name === interfaceDef.name)) {
         referencedInterfaces.push(interfaceDef);
       }
     });
 
-    // Scan referenced interfaces for additional type dependencies (like enums used in interface properties)
-    referencedInterfaces.forEach(interfaceDef => {
-      this.extractTypeNames(interfaceDef.source).forEach(typeName => {
-        if (!genericTypeParamNames.has(typeName)) {
-          referencedTypes.add(typeName);
-        }
-      });
-    });
-
-    // Re-check enums after scanning interfaces for dependencies
-    this.enums.forEach(enumDef => {
-      if (referencedTypes.has(enumDef.name) &&
-          !referencedEnums.some(existing => existing.name === enumDef.name)) {
-        referencedEnums.push(enumDef);
-      }
-    });
+    // Sort interfaces/type aliases topologically so dependencies come before dependents
+    const sortedInterfaces = this.topologicalSortTypes(referencedInterfaces, genericTypeParamNames);
 
     // Enums should come before interfaces that use them
     const moduleEnums = referencedEnums.map(enumDef => enumDef.source).join('\n\n');
-    const moduleInterfaces = referencedInterfaces.map(interfaceDef => interfaceDef.source).join('\n\n');
+    const moduleInterfaces = sortedInterfaces.map(interfaceDef => interfaceDef.source).join('\n\n');
 
     // Generate domain interface for this module
     const domainMethodDefinitions = methods.map(method => {
@@ -1099,11 +1111,17 @@ ${rpcClientInterface}
   private extractTypeNames(typeString: string): Set<string> {
     const typeNames = new Set<string>();
 
+    // Remove JSDoc comments and single-line comments to avoid matching words in comments
+    const codeWithoutComments = typeString
+      .replace(/\/\*\*[\s\S]*?\*\//g, '') // Remove JSDoc comments
+      .replace(/\/\*[\s\S]*?\*\//g, '')   // Remove multi-line comments
+      .replace(/\/\/.*$/gm, '');          // Remove single-line comments
+
     // Match type names (letters, numbers, underscore, $)
     // This regex will match identifiers that could be type names
     const typeNameRegex = /\b[A-Z][a-zA-Z0-9_$]*\b/g;
 
-    const matches = typeString.match(typeNameRegex);
+    const matches = codeWithoutComments.match(typeNameRegex);
     if (matches) {
       matches.forEach(match => {
         // Exclude built-in types and common generic types
@@ -1242,5 +1260,81 @@ export type AllRpcMethods = {};`;
 export type AllRpcMethods = {
 ${methodEntries.join('\n')}
 };`;
+  }
+
+  /**
+   * Topologically sort types so that dependencies come before dependents.
+   * This ensures type aliases and interfaces are defined before they are used.
+   */
+  private topologicalSortTypes(types: InterfaceDefinition[], genericTypeParamNames: Set<string>): InterfaceDefinition[] {
+    if (types.length === 0) return [];
+
+    // Build a dependency graph
+    const typeNames = new Set(types.map(t => t.name));
+    const dependencies = new Map<string, Set<string>>();
+
+    types.forEach(typeDef => {
+      const deps = new Set<string>();
+      this.extractTypeNames(typeDef.source).forEach(depName => {
+        // Only consider dependencies that are in our type set and not generic params
+        if (typeNames.has(depName) && depName !== typeDef.name && !genericTypeParamNames.has(depName)) {
+          deps.add(depName);
+        }
+      });
+      dependencies.set(typeDef.name, deps);
+    });
+
+    // Kahn's algorithm for topological sort
+    // We want dependencies to come BEFORE dependents
+    const sorted: InterfaceDefinition[] = [];
+    const typeMap = new Map(types.map(t => [t.name, t]));
+
+    // In-degree = number of dependencies a type has (within our type set)
+    // Types with 0 dependencies should be output first
+    const inDegree = new Map<string, number>();
+    typeNames.forEach(name => {
+      const deps = dependencies.get(name) || new Set();
+      inDegree.set(name, deps.size);
+    });
+
+    // Start with types that have no dependencies
+    const queue: string[] = [];
+    inDegree.forEach((degree, name) => {
+      if (degree === 0) {
+        queue.push(name);
+      }
+    });
+
+    while (queue.length > 0) {
+      const name = queue.shift()!;
+      const typeDef = typeMap.get(name);
+      if (typeDef) {
+        sorted.push(typeDef);
+      }
+
+      // For each type that depends on this one, decrement its in-degree
+      // (because one of its dependencies has now been processed)
+      typeNames.forEach(dependentName => {
+        const deps = dependencies.get(dependentName);
+        if (deps && deps.has(name)) {
+          const newDegree = (inDegree.get(dependentName) || 1) - 1;
+          inDegree.set(dependentName, newDegree);
+          if (newDegree === 0) {
+            queue.push(dependentName);
+          }
+        }
+      });
+    }
+
+    // If there's a cycle, just append remaining types (they have circular deps)
+    if (sorted.length < types.length) {
+      types.forEach(t => {
+        if (!sorted.includes(t)) {
+          sorted.push(t);
+        }
+      });
+    }
+
+    return sorted;
   }
 }

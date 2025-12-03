@@ -165,6 +165,37 @@ importers:
         specifier: ^5.0.0
         version: 5.9.2
 
+  examples/modules/forms-module:
+    dependencies:
+      '@meetsmore/lib-rpc':
+        specifier: workspace:*
+        version: link:../../lib-rpc
+      '@nestjs/common':
+        specifier: ^11.0.0
+        version: 11.1.9(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core':
+        specifier: ^11.0.0
+        version: 11.1.9(@nestjs/common@11.1.9(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.9)(@nestjs/platform-express@11.1.9)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/microservices':
+        specifier: ^11.0.0
+        version: 11.1.9(@nestjs/common@11.1.9(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.9)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@zdavison/nestjs-rpc-toolkit':
+        specifier: workspace:*
+        version: link:../../../packages/nestjs-rpc-toolkit
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+      rxjs:
+        specifier: ^7.8.1
+        version: 7.8.2
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.17
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.2
+
   examples/modules/messaging-module:
     dependencies:
       '@meetsmore/lib-rpc':
