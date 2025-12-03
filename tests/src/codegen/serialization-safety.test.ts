@@ -6,6 +6,7 @@
 import 'reflect-metadata';
 import { RpcMethod } from '@zdavison/nestjs-rpc-toolkit';
 import { AssertSerializable, SerializableJson } from '@zdavison/nestjs-rpc-toolkit/dist/types/serializable';
+import type { JsonObject, JsonValue } from 'type-fest';
 
 describe('RPC interfaces will require all arguments and return values to be serializable.', () => {
   describe('Type-level serialization constraints', () => {
@@ -273,6 +274,149 @@ describe('RPC interfaces will require all arguments and return values to be seri
       const _isValid: ValidCheck = true;
 
       expect(true).toBe(true);
+    });
+  });
+
+  describe('Optional properties should be serializable', () => {
+    it('should allow interfaces with optional properties', () => {
+      // Interfaces with optional properties should be serializable
+      // Optional properties become `T | undefined` but are valid in JSON (they just won't be present)
+      interface FormDataRpcResponse {
+        schema: Record<string, unknown>;
+        uiSchema?: Record<string, unknown>;  // Optional field
+        title: string;
+        description?: string;   // Optional field
+        submitButtonText?: string;
+      }
+
+      type CheckOptional = AssertSerializable<FormDataRpcResponse>;
+
+      // This type should NOT be 'never' - optional properties are valid JSON
+      type IsNotNever<T> = [T] extends [never] ? false : true;
+      type ShouldBeTrue = IsNotNever<CheckOptional>;
+
+      const _check: ShouldBeTrue = true;
+
+      expect(true).toBe(true);
+    });
+
+    it('should compile @RpcMethod with optional properties in return type', () => {
+      interface FormDataRpcResponse {
+        schema: Record<string, unknown>;
+        uiSchema?: Record<string, unknown>;
+        title: string;
+        description?: string;
+        submitButtonText?: string;
+      }
+
+      class FormsRpcController {
+        @RpcMethod()
+        async loadFormByToken(token: string): Promise<FormDataRpcResponse> {
+          return {
+            schema: {},
+            title: 'Test Form',
+            uiSchema: {},
+            description: 'A test form',
+            submitButtonText: 'Submit'
+          };
+        }
+      }
+
+      expect(FormsRpcController).toBeDefined();
+    });
+
+    it('should allow simple optional string properties', () => {
+      interface SimpleOptional {
+        required: string;
+        optional?: string;
+      }
+
+      type Check = AssertSerializable<SimpleOptional>;
+
+      type IsNotNever<T> = [T] extends [never] ? false : true;
+      type ShouldBeTrue = IsNotNever<Check>;
+
+      const _check: ShouldBeTrue = true;
+
+      expect(true).toBe(true);
+    });
+
+    it('should allow Record<string, unknown> type', () => {
+      // Record<string, unknown> is a common pattern for JSON objects
+      type Check = AssertSerializable<Record<string, unknown>>;
+
+      type IsNotNever<T> = [T] extends [never] ? false : true;
+      type ShouldBeTrue = IsNotNever<Check>;
+
+      const _check: ShouldBeTrue = true;
+
+      expect(true).toBe(true);
+    });
+
+    it('should allow optional Record<string, unknown> properties', () => {
+      interface WithOptionalRecord {
+        required: string;
+        optional?: Record<string, unknown>;
+      }
+
+      type Check = AssertSerializable<WithOptionalRecord>;
+
+      type IsNotNever<T> = [T] extends [never] ? false : true;
+      type ShouldBeTrue = IsNotNever<Check>;
+
+      const _check: ShouldBeTrue = true;
+
+      expect(true).toBe(true);
+    });
+
+    it('should allow type-fest JsonObject type', () => {
+      // JsonObject from type-fest is a standard JSON object representation
+      // The depth limiter in IsSerializable prevents infinite recursion
+      type Check = AssertSerializable<JsonObject>;
+
+      type IsNotNever<T> = [T] extends [never] ? false : true;
+      type ShouldBeTrue = IsNotNever<Check>;
+
+      const _check: ShouldBeTrue = true;
+
+      expect(true).toBe(true);
+    });
+
+    it('should allow type-fest JsonValue type', () => {
+      type Check = AssertSerializable<JsonValue>;
+
+      type IsNotNever<T> = [T] extends [never] ? false : true;
+      type ShouldBeTrue = IsNotNever<Check>;
+
+      const _check: ShouldBeTrue = true;
+
+      expect(true).toBe(true);
+    });
+
+    it('should compile @RpcMethod with type-fest JsonObject - exact reproduction case', () => {
+      // This is the EXACT reproduction case from the bug report
+      interface FormDataRpcResponse {
+        schema: JsonObject;
+        uiSchema?: JsonObject;  // Optional field
+        title: string;
+        description?: string;   // Optional field
+        submitButtonText?: string;
+      }
+
+      class FormsRpcController {
+        @RpcMethod()
+        async loadFormByToken(token: string): Promise<FormDataRpcResponse> {
+          return {
+            schema: {},
+            title: 'Test Form',
+            uiSchema: {},
+            description: 'A test form',
+            submitButtonText: 'Submit'
+          };
+        }
+      }
+
+      expect(FormsRpcController).toBeDefined();
     });
   });
 });

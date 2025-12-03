@@ -1,6 +1,6 @@
 {
   "name": "@zdavison/nestjs-rpc-toolkit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Toolkit for type-safe RPC calls in NestJS monorepos.",
   "private": false,
   "main": "dist/index.js",
