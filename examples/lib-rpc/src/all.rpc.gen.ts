@@ -6,6 +6,7 @@
 // Avoid: functions, callbacks, Buffer, Map/Set, DOM elements, class instances, undefined
 // Prefer: primitives, plain objects, arrays, null (instead of undefined)
 
+import type { JsonValue } from 'type-fest';
 import { UserDomain, CreateUserDto, User, LookupUsersQuery, LookupUsersResult, UserSelect, UpdateUserContactDto, UpdateUserContactResponse } from './user.rpc.gen';
 import { AuthDomain, RegisterDto } from './auth.rpc.gen';
 import { MessagingDomain, IncomingMessage, QueuedMessage } from './messaging.rpc.gen';
@@ -16,6 +17,9 @@ export { UserDomain, CreateUserDto, User, LookupUsersQuery, LookupUsersResult, U
 export { AuthDomain, RegisterDto } from './auth.rpc.gen';
 export { MessagingDomain, IncomingMessage, QueuedMessage } from './messaging.rpc.gen';
 export { FormsDomain, CreateDynamicFormRequest, CreateDynamicFormResponse, FormDataRpcResponse, FormStatusResponse, SerializableObject } from './forms.rpc.gen';
+
+// Re-export external types from their source packages
+export type { JsonValue } from 'type-fest';
 
 // Re-export common types from their primary modules
 
@@ -34,6 +38,7 @@ export type AllRpcMethods = {
   'forms.checkFormStatus': { params: { token: string }; returns: FormStatusResponse };
   'forms.getFormContext': { params: { token: string }; returns: SerializableObject };
   'forms.getFormCallbackRoute': { params: { token: string }; returns: string };
+  'forms.submitForm': { params: { shortCode: string; submissionData: JsonValue }; returns: void };
 };
 
 

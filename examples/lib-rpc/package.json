@@ -14,7 +14,8 @@
     "@nestjs/common": "^11.0.0",
     "@nestjs/microservices": "^11.0.0",
     "@zdavison/nestjs-rpc-toolkit": "workspace:*",
-    "@shared/types": "workspace:*"
+    "@shared/types": "workspace:*",
+    "type-fest": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.5.1",

@@ -825,7 +825,15 @@ ${domainInterface}
   private generateMainTypesFile(moduleGroups: Record<string, RpcMethodInfo[]>): void {
     const hasModules = Object.keys(moduleGroups).length > 0;
 
+    // Helper to check if a type is external (imported from an npm package)
+    const isExternalType = (typeName: string): boolean => {
+      return this.typeToPackageMap.has(typeName) &&
+             !this.interfaces.has(typeName) &&
+             !this.enums.has(typeName);
+    };
+
     // Generate imports from module files - include domain interfaces and types
+    // but EXCLUDE external types (they're imported in module files, not exported)
     const moduleImports = Object.keys(moduleGroups).map(moduleName => {
       // Collect all types referenced in this module's methods
       const referencedTypes = new Set<string>();
@@ -863,8 +871,9 @@ ${domainInterface}
         }
       });
 
+      // Filter out built-in types, internal types, AND external types
       const typesList = Array.from(referencedTypes).filter(type =>
-        !this.isBuiltInType(type) && !this.isInternalType(type)
+        !this.isBuiltInType(type) && !this.isInternalType(type) && !isExternalType(type)
       );
 
       const imports = [`${this.toCamelCase(moduleName)}Domain`];
@@ -876,6 +885,7 @@ ${domainInterface}
     }).join('\n');
 
     // Generate selective re-exports to avoid type conflicts
+    // EXCLUDE external types - they should be imported directly from their packages
     const moduleReExports = Object.keys(moduleGroups).map(moduleName => {
       // Collect all types referenced in this module's methods
       const referencedTypes = new Set<string>();
@@ -913,8 +923,9 @@ ${domainInterface}
         }
       });
 
+      // Filter out built-in types, internal types, AND external types
       const typesList = Array.from(referencedTypes).filter(type =>
-        !this.isBuiltInType(type) && !this.isInternalType(type)
+        !this.isBuiltInType(type) && !this.isInternalType(type) && !isExternalType(type)
       );
 
       const exports = [`${this.toCamelCase(moduleName)}Domain`];
@@ -927,6 +938,61 @@ ${domainInterface}
 
     // Generate common type re-exports from their original modules
     const commonTypeExports = this.generateCommonTypeExports(moduleGroups);
+
+    // Collect all external types used across all modules for direct import/re-export
+    const externalTypesUsed = new Map<string, Set<string>>(); // package -> types
+    Object.values(moduleGroups).forEach(methods => {
+      methods.forEach(method => {
+        const genericTypeParamNames = new Set<string>();
+        if (method.typeParameters) {
+          method.typeParameters.forEach(typeParam => {
+            genericTypeParamNames.add(typeParam.split(' ')[0]);
+          });
+        }
+
+        // Collect types from params and return type
+        const allTypes = new Set<string>();
+        method.paramTypes.forEach(param => {
+          this.extractTypeNames(param.type).forEach(t => {
+            if (!genericTypeParamNames.has(t)) allTypes.add(t);
+          });
+        });
+        this.extractTypeNames(method.returnType).forEach(t => {
+          if (!genericTypeParamNames.has(t)) allTypes.add(t);
+        });
+
+        // Check which are external types
+        allTypes.forEach(typeName => {
+          if (isExternalType(typeName)) {
+            const packageName = this.typeToPackageMap.get(typeName)!;
+            if (!externalTypesUsed.has(packageName)) {
+              externalTypesUsed.set(packageName, new Set());
+            }
+            externalTypesUsed.get(packageName)!.add(typeName);
+          }
+        });
+      });
+    });
+
+    // Generate import statements for external types
+    const externalImportStatements: string[] = [];
+    externalTypesUsed.forEach((types, packageName) => {
+      const sortedTypes = Array.from(types).sort();
+      externalImportStatements.push(`import type { ${sortedTypes.join(', ')} } from '${packageName}';`);
+    });
+    const externalImportsSection = externalImportStatements.length > 0
+      ? externalImportStatements.join('\n') + '\n'
+      : '';
+
+    // Generate re-export statements for external types
+    const externalReExportStatements: string[] = [];
+    externalTypesUsed.forEach((types, packageName) => {
+      const sortedTypes = Array.from(types).sort();
+      externalReExportStatements.push(`export type { ${sortedTypes.join(', ')} } from '${packageName}';`);
+    });
+    const externalReExportsSection = externalReExportStatements.length > 0
+      ? '\n// Re-export external types from their source packages\n' + externalReExportStatements.join('\n')
+      : '';
 
     // Generate AllRpcMethods type for MessageBus
     const allRpcMethodsType = hasModules
@@ -957,10 +1023,11 @@ export interface IRpcClient {
 // Avoid: functions, callbacks, Buffer, Map/Set, DOM elements, class instances, undefined
 // Prefer: primitives, plain objects, arrays, null (instead of undefined)
 
-${moduleImports}
+${externalImportsSection}${moduleImports}
 
 // Re-export domain interfaces and types
 ${moduleReExports}
+${externalReExportsSection}
 
 // Re-export common types from their primary modules
 ${commonTypeExports}

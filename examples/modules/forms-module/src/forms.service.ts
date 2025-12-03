@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { RpcController, RpcMethod } from '@zdavison/nestjs-rpc-toolkit';
+import type { JsonValue, JsonObject } from 'type-fest';
 
 /**
  * Test case for type generation bugs (mirrors oddjob-contacts pattern):
@@ -7,6 +8,7 @@ import { RpcController, RpcMethod } from '@zdavison/nestjs-rpc-toolkit';
  * 2. Transitive type dependencies should be copied
  * 3. All locally-defined interfaces should be exported
  * 4. Forward-referenced types should also be included
+ * 5. External types (like JsonValue from type-fest) should be re-exported correctly
  */
 
 /**
@@ -128,5 +130,15 @@ export class FormsService {
   @RpcMethod()
   getFormCallbackRoute(token: string): Promise<string> {
     return Promise.resolve('/callback');
+  }
+
+  /**
+   * Submit form data using JsonValue from type-fest (external package type).
+   * This tests that external types are correctly re-exported in generated files.
+   */
+  @RpcMethod()
+  submitForm(shortCode: string, submissionData: JsonValue): Promise<void> {
+    console.log('Submitting form:', shortCode, submissionData);
+    return Promise.resolve();
   }
 }

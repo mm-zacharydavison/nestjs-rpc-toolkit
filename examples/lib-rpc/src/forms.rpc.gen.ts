@@ -3,6 +3,8 @@
 //
 // IMPORTANT: All types must be JSON-serializable for TCP transport when extracted to microservices
 
+import { JsonValue } from 'type-fest';
+
 // Forms module types
 /**
  * Field definition for forms (RPC serializable version)
@@ -31,6 +33,7 @@ export interface FormStatusResponse {
  * 2. Transitive type dependencies should be copied
  * 3. All locally-defined interfaces should be exported
  * 4. Forward-referenced types should also be included
+ * 5. External types (like JsonValue from type-fest) should be re-exported correctly
  */
 /**
  * JSON-like object type for RPC serialization
@@ -102,4 +105,9 @@ export interface FormsDomain {
    * Get callback route for a form
    */
   getFormCallbackRoute(params: { token: string }): Promise<string>;
+/**
+   * Submit form data using JsonValue from type-fest (external package type).
+   * This tests that external types are correctly re-exported in generated files.
+   */
+  submitForm(params: { shortCode: string; submissionData: JsonValue }): Promise<void>;
 }
