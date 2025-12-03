@@ -19,7 +19,7 @@ import { InProcessClientProxy, MessageBus } from '@zdavison/nestjs-rpc-toolkit';
     UserService,
     {
       provide: 'MESSAGE_BUS',
-      useFactory: (client: ClientProxy) => {
+      useFactory: (client: ClientProxy<any, any>) => {
         return new MessageBus(client);
       },
       inject: ['MICROSERVICE_CLIENT'],
@@ -51,7 +51,7 @@ export class UserModule {
         UserService,
         {
           provide: 'MESSAGE_BUS',
-          useFactory: (client: ClientProxy) => {
+          useFactory: (client: ClientProxy<any, any>) => {
             return new MessageBus(client);
           },
           inject: ['MICROSERVICE_CLIENT'],

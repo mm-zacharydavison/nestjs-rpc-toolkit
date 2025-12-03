@@ -32,9 +32,11 @@ describe('RPC modules must be able to be co-located in the same process, and com
       ],
       controllers: [UserService, AuthService], // Register as controllers for RPC
       providers: [
+        UserService,
+        AuthService,
         {
           provide: 'RPC',
-          useFactory: (client: ClientProxy) => {
+          useFactory: (client: ClientProxy<any, any>) => {
             const rpcClient = new RpcClient(client);
             return new Proxy({}, {
               get: (_target, domain: string) => {

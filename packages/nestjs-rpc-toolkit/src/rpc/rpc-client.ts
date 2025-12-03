@@ -4,7 +4,7 @@ import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class RpcClient {
-  constructor(private readonly client: ClientProxy) {}
+  constructor(private readonly client: ClientProxy<any, any>) {}
 
   /**
    * Create domain proxies dynamically based on the RPC methods available
