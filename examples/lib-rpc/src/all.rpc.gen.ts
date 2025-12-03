@@ -9,13 +9,13 @@
 import { UserDomain, CreateUserDto, User, LookupUsersQuery, LookupUsersResult, UserSelect, UpdateUserContactDto, UpdateUserContactResponse } from './user.rpc.gen';
 import { AuthDomain, RegisterDto } from './auth.rpc.gen';
 import { MessagingDomain, IncomingMessage, QueuedMessage } from './messaging.rpc.gen';
-import { FormsDomain, CreateDynamicFormRequest, CreateDynamicFormResponse, RpcFormFieldDefinition } from './forms.rpc.gen';
+import { FormsDomain, CreateDynamicFormRequest, CreateDynamicFormResponse, FormDataRpcResponse, FormStatusResponse, SerializableObject } from './forms.rpc.gen';
 
 // Re-export domain interfaces and types
 export { UserDomain, CreateUserDto, User, LookupUsersQuery, LookupUsersResult, UserSelect, UpdateUserContactDto, UpdateUserContactResponse } from './user.rpc.gen';
 export { AuthDomain, RegisterDto } from './auth.rpc.gen';
 export { MessagingDomain, IncomingMessage, QueuedMessage } from './messaging.rpc.gen';
-export { FormsDomain, CreateDynamicFormRequest, CreateDynamicFormResponse, RpcFormFieldDefinition } from './forms.rpc.gen';
+export { FormsDomain, CreateDynamicFormRequest, CreateDynamicFormResponse, FormDataRpcResponse, FormStatusResponse, SerializableObject } from './forms.rpc.gen';
 
 // Re-export common types from their primary modules
 
@@ -30,7 +30,10 @@ export type AllRpcMethods = {
   'messaging.queueMessage': { params: { message: IncomingMessage }; returns: QueuedMessage };
   'messaging.getQueueStatus': { params: {}; returns: { connected: boolean; service: string; queueLength: number; } };
   'forms.createDynamicForm': { params: { request: CreateDynamicFormRequest }; returns: CreateDynamicFormResponse };
-  'forms.getFieldDefinition': { params: { fieldName: string }; returns: RpcFormFieldDefinition };
+  'forms.loadFormByToken': { params: { token: string }; returns: FormDataRpcResponse };
+  'forms.checkFormStatus': { params: { token: string }; returns: FormStatusResponse };
+  'forms.getFormContext': { params: { token: string }; returns: SerializableObject };
+  'forms.getFormCallbackRoute': { params: { token: string }; returns: string };
 };
 
 

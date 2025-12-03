@@ -2,91 +2,131 @@ import { Injectable } from '@nestjs/common';
 import { RpcController, RpcMethod } from '@zdavison/nestjs-rpc-toolkit';
 
 /**
- * Test case for type generation bugs:
+ * Test case for type generation bugs (mirrors oddjob-contacts pattern):
  * 1. Type aliases should be exported
  * 2. Transitive type dependencies should be copied
  * 3. All locally-defined interfaces should be exported
+ * 4. Forward-referenced types should also be included
  */
 
-// Bug 1 & 2: Type alias with recursive reference - both should be copied to generated file
+/**
+ * JSON-like object type for RPC serialization
+ */
+type SerializableObject = { [key: string]: SerializableValue };
 type SerializableValue = string | number | boolean | null | SerializableObject | SerializableValue[];
 
-// Type alias using above - should reference SerializableValue which must also be copied
-type SerializableObject = { [key: string]: SerializableValue };
-
-// Bug 3: Locally-defined interface should be exported (not just `interface`, but `export interface`)
+/**
+ * Field definition for forms (RPC serializable version)
+ */
 interface RpcFormFieldDefinition {
-  /** Name of the field */
   name: string;
-  /** Display label for the field */
   label: string;
-  /** Type of form field (text, number, select, etc.) */
   type: string;
-  /** Whether the field is required */
-  required: boolean;
-  /** Default value for the field */
-  defaultValue?: SerializableValue;
+  required: boolean | null;
+  default: string | null;
+  options: string[] | null;
+  placeholder: string | null;
 }
 
-// Bug 2: Transitive dependency - CreateFormRpcParams references RpcFormFieldDefinition
+/**
+ * RPC parameters for creating a dynamic form
+ */
 interface CreateFormRpcParams {
-  /** Purpose of the form */
   purpose: string;
-  /** Field definitions for the form */
+  title: string;
+  description: string | null;
   fields: RpcFormFieldDefinition[];
-  /** Optional metadata for the form */
-  metadata?: SerializableObject;
+  context: SerializableObject | null;
+  submitButtonText: string | null;
 }
 
-// This is the type directly used by RPC method - it should be copied AND exported,
-// but its dependencies (CreateFormRpcParams, RpcFormFieldDefinition, SerializableValue, SerializableObject)
-// should ALSO be copied and exported
+/**
+ * Full RPC request for creating a dynamic form
+ */
 interface CreateDynamicFormRequest {
-  /** Form creation parameters */
   params: CreateFormRpcParams;
-  /** User ID creating the form */
   userId: string;
-  /** Messenger account ID */
   messengerAccountId: string;
 }
 
-// Response type that also uses local types
+/**
+ * RPC response for form creation
+ */
 interface CreateDynamicFormResponse {
-  /** ID of the created form */
   formId: string;
-  /** Schema of the created form */
   schema: SerializableObject;
-  /** Creation timestamp */
   createdAt: string;
+}
+
+/**
+ * RPC response for form data
+ */
+interface FormDataRpcResponse {
+  schema: SerializableObject;
+  uiSchema: SerializableObject | null;
+  title: string;
+  description: string | null;
+  submitButtonText: string | null;
+}
+
+/**
+ * RPC response for form status check
+ */
+interface FormStatusResponse {
+  valid: boolean;
+  reason: string | null;
 }
 
 @Injectable()
 @RpcController('forms')
 export class FormsService {
   /**
-   * Creates a dynamic form based on the provided parameters
-   * @param request - The form creation request containing params, userId, and messengerAccountId
-   * @returns The created form with its ID and schema
+   * Create a dynamic form from field definitions
    */
   @RpcMethod()
-  async createDynamicForm(request: CreateDynamicFormRequest): Promise<CreateDynamicFormResponse> {
-    return {
+  createDynamicForm(request: CreateDynamicFormRequest): Promise<CreateDynamicFormResponse> {
+    return Promise.resolve({
       formId: `form-${Math.random().toString(36).substring(7)}`,
-      schema: {
-        type: 'object',
-        properties: {},
-      },
+      schema: { type: 'object', properties: {} },
       createdAt: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Load form data by token (for rendering in the web UI)
+   */
+  @RpcMethod()
+  async loadFormByToken(token: string): Promise<FormDataRpcResponse> {
+    return {
+      schema: { type: 'object' },
+      uiSchema: null,
+      title: 'Test Form',
+      description: null,
+      submitButtonText: null,
     };
   }
 
   /**
-   * Gets a form field definition by name
-   * @param fieldName - The name of the field to get
-   * @returns The field definition or null if not found
+   * Check if a form is still valid (not expired or submitted)
    */
   @RpcMethod()
-  async getFieldDefinition(fieldName: string): Promise<RpcFormFieldDefinition | null> {
-    return null;
+  async checkFormStatus(token: string): Promise<FormStatusResponse> {
+    return { valid: true, reason: null };
+  }
+
+  /**
+   * Get the form context (for callback processing)
+   */
+  @RpcMethod()
+  async getFormContext(token: string): Promise<SerializableObject> {
+    return {};
+  }
+
+  /**
+   * Get callback route for a form
+   */
+  @RpcMethod()
+  getFormCallbackRoute(token: string): Promise<string> {
+    return Promise.resolve('/callback');
   }
 }

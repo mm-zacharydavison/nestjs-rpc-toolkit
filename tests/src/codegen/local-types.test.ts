@@ -10,8 +10,12 @@
  *    CreateFormRpcParams, only the former is copied
  * 2. Misses type aliases - type SerializableValue = ... is not copied even though
  *    SerializableObject references it
+ * 3. Interfaces missing 'export' keyword in generated output
+ * 4. Forward-referenced types not being collected (SerializableObject defined before SerializableValue)
  *
  * This test uses the forms-module example which demonstrates these bugs.
+ * The forms-module is structured to mirror the oddjob-contacts pattern where
+ * SerializableObject is defined BEFORE SerializableValue (forward reference).
  */
 
 import 'reflect-metadata';
@@ -41,7 +45,7 @@ describe('RPC type generator should include all locally-defined types and their 
 
   describe('Type Alias Generation', () => {
     it('should include type aliases that are directly referenced by interfaces', () => {
-      // SerializableValue is used by RpcFormFieldDefinition.defaultValue
+      // SerializableValue is used in SerializableObject's definition
       // It should be defined in the generated file
       expect(formsGenContent).toContain('type SerializableValue');
     });
@@ -62,6 +66,14 @@ describe('RPC type generator should include all locally-defined types and their 
       // The generator should handle this without infinite loops
       expect(formsGenContent).toMatch(/type SerializableValue\s*=.*SerializableValue\[\]/);
     });
+
+    it('should include forward-referenced type aliases', () => {
+      // In the source, SerializableObject is defined BEFORE SerializableValue
+      // but SerializableObject references SerializableValue
+      // Both should still be included
+      expect(formsGenContent).toContain('export type SerializableObject');
+      expect(formsGenContent).toContain('export type SerializableValue');
+    });
   });
 
   describe('Transitive Interface Dependencies', () => {
@@ -73,7 +85,7 @@ describe('RPC type generator should include all locally-defined types and their 
 
     it('should include deeply nested interface dependencies', () => {
       // CreateFormRpcParams references RpcFormFieldDefinition
-      // RpcFormFieldDefinition should be included (it already is, but we verify)
+      // RpcFormFieldDefinition should be included
       expect(formsGenContent).toContain('interface RpcFormFieldDefinition');
     });
 
@@ -81,6 +93,13 @@ describe('RPC type generator should include all locally-defined types and their 
       // All transitive dependencies should be exported
       expect(formsGenContent).toContain('export interface CreateFormRpcParams');
       expect(formsGenContent).toContain('export interface RpcFormFieldDefinition');
+    });
+
+    it('should include response types from all RPC methods', () => {
+      // FormDataRpcResponse is returned by loadFormByToken
+      // FormStatusResponse is returned by checkFormStatus
+      expect(formsGenContent).toContain('export interface FormDataRpcResponse');
+      expect(formsGenContent).toContain('export interface FormStatusResponse');
     });
   });
 
@@ -147,41 +166,52 @@ describe('RPC type generator should include all locally-defined types and their 
     });
   });
 
-  describe('Specific Bug Reproductions', () => {
+  describe('Specific Bug Reproductions (oddjob-contacts pattern)', () => {
     it('Bug 1: CreateFormRpcParams should be included (transitive dependency of CreateDynamicFormRequest)', () => {
       // CreateDynamicFormRequest.params: CreateFormRpcParams
       // This is a direct property type reference that should be followed
       expect(formsGenContent).toMatch(/export\s+interface\s+CreateFormRpcParams\s*\{/);
     });
 
-    it('Bug 2: SerializableValue type alias should be included (used by SerializableObject and RpcFormFieldDefinition)', () => {
-      // SerializableObject = { [key: string]: SerializableValue }
-      // RpcFormFieldDefinition.defaultValue?: SerializableValue
+    it('Bug 2: SerializableValue type alias should be included even when forward-referenced', () => {
+      // In source: SerializableObject is defined before SerializableValue
+      // SerializableObject = { [key: string]: SerializableValue } -- forward reference
+      // Both must be included
       expect(formsGenContent).toMatch(/export\s+type\s+SerializableValue\s*=/);
     });
 
-    it('Bug 3: SerializableObject type alias should be included (used by CreateDynamicFormResponse.schema)', () => {
-      // CreateDynamicFormResponse.schema: SerializableObject
+    it('Bug 3: SerializableObject type alias should be included (used by FormDataRpcResponse.schema)', () => {
+      // FormDataRpcResponse.schema: SerializableObject
       expect(formsGenContent).toMatch(/export\s+type\s+SerializableObject\s*=/);
+    });
+
+    it('Bug 4: All interfaces should have export keyword', () => {
+      // Check for interfaces without export
+      const allInterfaces = formsGenContent.match(/^interface\s+\w+/gm) || [];
+      expect(allInterfaces).toHaveLength(0); // Should be no non-exported interfaces
+    });
+
+    it('Bug 5: RpcFormFieldDefinition should be included (transitive dependency)', () => {
+      // CreateFormRpcParams.fields: RpcFormFieldDefinition[]
+      expect(formsGenContent).toMatch(/export\s+interface\s+RpcFormFieldDefinition\s*\{/);
     });
   });
 
   describe('Type Order and Dependencies', () => {
     it('should define type aliases before interfaces that use them', () => {
-      // SerializableValue and SerializableObject should be defined before RpcFormFieldDefinition
+      // SerializableValue and SerializableObject should be defined before FormDataRpcResponse
       const serializableValueIndex = formsGenContent.indexOf('type SerializableValue');
       const serializableObjectIndex = formsGenContent.indexOf('type SerializableObject');
-      const rpcFormFieldIndex = formsGenContent.indexOf('interface RpcFormFieldDefinition');
+      const formDataRpcResponseIndex = formsGenContent.indexOf('interface FormDataRpcResponse');
 
       // SerializableValue should come before things that use it
-      if (serializableValueIndex !== -1 && rpcFormFieldIndex !== -1) {
-        expect(serializableValueIndex).toBeLessThan(rpcFormFieldIndex);
+      if (serializableValueIndex !== -1 && formDataRpcResponseIndex !== -1) {
+        expect(serializableValueIndex).toBeLessThan(formDataRpcResponseIndex);
       }
 
       // SerializableObject should come before things that use it
-      if (serializableObjectIndex !== -1 && formsGenContent.indexOf('interface CreateDynamicFormResponse') !== -1) {
-        const responseIndex = formsGenContent.indexOf('interface CreateDynamicFormResponse');
-        expect(serializableObjectIndex).toBeLessThan(responseIndex);
+      if (serializableObjectIndex !== -1 && formDataRpcResponseIndex !== -1) {
+        expect(serializableObjectIndex).toBeLessThan(formDataRpcResponseIndex);
       }
     });
 
@@ -192,6 +222,16 @@ describe('RPC type generator should include all locally-defined types and their 
       // CreateFormRpcParams should be defined before CreateDynamicFormRequest uses it
       if (paramsIndex !== -1 && requestIndex !== -1) {
         expect(paramsIndex).toBeLessThan(requestIndex);
+      }
+    });
+
+    it('should define RpcFormFieldDefinition before CreateFormRpcParams', () => {
+      const fieldDefIndex = formsGenContent.indexOf('interface RpcFormFieldDefinition');
+      const paramsIndex = formsGenContent.indexOf('interface CreateFormRpcParams');
+
+      // RpcFormFieldDefinition should be defined before CreateFormRpcParams uses it
+      if (fieldDefIndex !== -1 && paramsIndex !== -1) {
+        expect(fieldDefIndex).toBeLessThan(paramsIndex);
       }
     });
   });

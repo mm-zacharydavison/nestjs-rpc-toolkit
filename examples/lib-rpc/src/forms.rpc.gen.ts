@@ -5,67 +5,101 @@
 
 // Forms module types
 /**
- * Test case for type generation bugs:
+ * Field definition for forms (RPC serializable version)
+ */
+export interface RpcFormFieldDefinition {
+  name: string;
+  label: string;
+  type: string;
+  required: boolean | null;
+  default: string | null;
+  options: string[] | null;
+  placeholder: string | null;
+}
+
+/**
+ * RPC response for form status check
+ */
+export interface FormStatusResponse {
+  valid: boolean;
+  reason: string | null;
+}
+
+/**
+ * Test case for type generation bugs (mirrors oddjob-contacts pattern):
  * 1. Type aliases should be exported
  * 2. Transitive type dependencies should be copied
  * 3. All locally-defined interfaces should be exported
+ * 4. Forward-referenced types should also be included
  */
-export type SerializableValue = string | number | boolean | null | SerializableObject | SerializableValue[];
-
+/**
+ * JSON-like object type for RPC serialization
+ */
 export type SerializableObject = { [key: string]: SerializableValue };
 
-export interface RpcFormFieldDefinition {
-  /** Name of the field */
-  name: string;
-  /** Display label for the field */
-  label: string;
-  /** Type of form field (text, number, select, etc.) */
-  type: string;
-  /** Whether the field is required */
-  required: boolean;
-  /** Default value for the field */
-  defaultValue?: SerializableValue;
-}
+export type SerializableValue = string | number | boolean | null | SerializableObject | SerializableValue[];
 
+/**
+ * RPC parameters for creating a dynamic form
+ */
 export interface CreateFormRpcParams {
-  /** Purpose of the form */
   purpose: string;
-  /** Field definitions for the form */
+  title: string;
+  description: string | null;
   fields: RpcFormFieldDefinition[];
-  /** Optional metadata for the form */
-  metadata?: SerializableObject;
+  context: SerializableObject | null;
+  submitButtonText: string | null;
 }
 
+/**
+ * Full RPC request for creating a dynamic form
+ */
 export interface CreateDynamicFormRequest {
-  /** Form creation parameters */
   params: CreateFormRpcParams;
-  /** User ID creating the form */
   userId: string;
-  /** Messenger account ID */
   messengerAccountId: string;
 }
 
+/**
+ * RPC response for form creation
+ */
 export interface CreateDynamicFormResponse {
-  /** ID of the created form */
   formId: string;
-  /** Schema of the created form */
   schema: SerializableObject;
-  /** Creation timestamp */
   createdAt: string;
+}
+
+/**
+ * RPC response for form data
+ */
+export interface FormDataRpcResponse {
+  schema: SerializableObject;
+  uiSchema: SerializableObject | null;
+  title: string;
+  description: string | null;
+  submitButtonText: string | null;
 }
 
 // Domain interface for forms module
 export interface FormsDomain {
 /**
-   * Creates a dynamic form based on the provided parameters
-   * @param request - The form creation request containing params, userId, and messengerAccountId
-   * @returns The created form with its ID and schema
+   * Create a dynamic form from field definitions
    */
   createDynamicForm(params: { request: CreateDynamicFormRequest }): Promise<CreateDynamicFormResponse>;
 /**
-   * Gets a form field definition by name
-   * @param fieldName - The name of the field to get
-   * @returns The field definition or null if not found
+   * Load form data by token (for rendering in the web UI)
    */
-  getFieldDefinition(params: { fieldName: string }): Promise<RpcFormFieldDefinition>;
+  loadFormByToken(params: { token: string }): Promise<FormDataRpcResponse>;
+/**
+   * Check if a form is still valid (not expired or submitted)
+   */
+  checkFormStatus(params: { token: string }): Promise<FormStatusResponse>;
+/**
+   * Get the form context (for callback processing)
+   */
+  getFormContext(params: { token: string }): Promise<SerializableObject>;
+/**
+   * Get callback route for a form
+   */
+  getFormCallbackRoute(params: { token: string }): Promise<string>;
 }
