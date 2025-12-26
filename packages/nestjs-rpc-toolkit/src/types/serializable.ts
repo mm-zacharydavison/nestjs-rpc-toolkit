@@ -268,40 +268,24 @@ interface SerializableJsonObject {
 
 interface SerializableJsonArray extends Array<SerializableJson> {}
 
-// Helper to check if any property in an object is 'never'
-type HasNeverProperty<T> = {
-  [K in keyof T]: [T[K]] extends [never] ? true : false;
-}[keyof T] extends false ? false : true;
-
 // Helper type to check exact equality
 type Equal<X, Y> =
   (<T>() => T extends X ? 1 : 2) extends
   (<T>() => T extends Y ? 1 : 2) ? true : false;
 
-// Recursively check if a type is serializable (strict JSON only)
+// Check if a type is serializable using either defualt JSON types or codecs added by nestjs-rpc-toolkit..
 // Note: Date is allowed because the RPC client automatically transforms Date <-> string
+// For simplicity and to avoid "Type instantiation is excessively deep" errors with
+// recursive types like JsonValue from type-fest, we only check top-level constraints.
 type IsSerializable<T> =
-  // Use Equal type check for exact undefined match
+  // Reject exact undefined
   Equal<T, undefined> extends true ? never :
+  // Reject exact symbol
   Equal<T, symbol> extends true ? never :
-  // Accept null
-  Equal<T, null> extends true ? T :
   // Reject functions
   T extends Function ? never :
-  // Accept Date (will be automatically transformed to/from ISO string by RPC client)
-  T extends Date ? T :
-  // Accept primitives
-  T extends string | number | boolean ? T :
-  // Accept arrays (check elements recursively)
-  T extends Array<infer U> ? Array<IsSerializable<U>> :
-  // Accept objects (check properties recursively)
-  T extends object ? (
-    { [K in keyof T]: IsSerializable<T[K]> } extends infer O
-      ? HasNeverProperty<O> extends true ? never : O
-      : never
-  ) :
-  // Reject everything else
-  never;
+  // Accept everything else (null, primitives, Date, objects, arrays, JsonValue, etc.)
+  T;
 
 /**
  * Helper type to check if a type is serializable.

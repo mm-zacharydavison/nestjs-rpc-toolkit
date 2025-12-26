@@ -41,7 +41,7 @@ export interface RpcClientOptions {
  * Check if codec transformation should be skipped.
  * Skips for in-process clients unless NRPCTK_STRICT env var is truthy.
  */
-function shouldSkipCodec(client: ClientProxy<any, any>): boolean {
+function shouldSkipCodec(client: ClientProxy): boolean {
   if (process.env.NRPCTK_STRICT) {
     return false;
   }
@@ -56,7 +56,7 @@ export class RpcClient {
   private skipCodec: boolean;
 
   constructor(
-    private readonly client: ClientProxy<any, any>,
+    private readonly client: ClientProxy,
     options: RpcClientOptions = {},
   ) {
     // Use built-in codecs (Date)
@@ -126,7 +126,7 @@ export class RpcClient {
  * ```
  */
 export function createRpcClientProxy(
-  client: ClientProxy<any, any>,
+  client: ClientProxy,
   options: RpcClientOptions = {},
 ): any {
   const rpcClient = new RpcClient(client, options);

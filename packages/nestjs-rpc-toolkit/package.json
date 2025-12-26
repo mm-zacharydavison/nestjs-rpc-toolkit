@@ -1,6 +1,6 @@
 {
   "name": "@zdavison/nestjs-rpc-toolkit",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Toolkit for type-safe RPC calls in NestJS monorepos.",
   "private": false,
   "main": "dist/index.js",
@@ -23,8 +23,8 @@
     "type-fest": "^5.0.1"
   },
   "devDependencies": {
-    "@nestjs/common": "^11.0.0",
-    "@nestjs/microservices": "^11.0.0",
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/microservices": "^10.0.0",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
   },
@@ -35,8 +35,8 @@
     "node": ">=18.0.0"
   },
   "peerDependencies": {
-    "@nestjs/common": "^11.0.0",
-    "@nestjs/microservices": "^11.0.0",
+    "@nestjs/common": "^10.0.0 || ^11.0.0",
+    "@nestjs/microservices": "^10.0.0 || ^11.0.0",
     "reflect-metadata": "^0.1.13 || ^0.2.0"
   }
 }
