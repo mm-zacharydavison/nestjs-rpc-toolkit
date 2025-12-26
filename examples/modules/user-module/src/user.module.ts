@@ -1,8 +1,8 @@
 import { Module, DynamicModule } from '@nestjs/common';
-import { ClientsModule, Transport, ClientProxy } from '@nestjs/microservices';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 import { UserService } from './user.service';
 import { UserController } from './user.controller';
-import { InProcessClientProxy, MessageBus } from '@zdavison/nestjs-rpc-toolkit';
+import { InProcessClientProxy, MessageBus, type RpcClientProxy } from '@zdavison/nestjs-rpc-toolkit';
 
 @Module({
   imports: [
@@ -10,7 +10,7 @@ import { InProcessClientProxy, MessageBus } from '@zdavison/nestjs-rpc-toolkit';
     ClientsModule.register([
       {
         name: 'MICROSERVICE_CLIENT',
-        customClass: InProcessClientProxy,
+        customClass: InProcessClientProxy as any,
       },
     ]),
   ],
@@ -19,7 +19,7 @@ import { InProcessClientProxy, MessageBus } from '@zdavison/nestjs-rpc-toolkit';
     UserService,
     {
       provide: 'MESSAGE_BUS',
-      useFactory: (client: ClientProxy<any, any>) => {
+      useFactory: (client: RpcClientProxy) => {
         return new MessageBus(client);
       },
       inject: ['MICROSERVICE_CLIENT'],
@@ -51,7 +51,7 @@ export class UserModule {
         UserService,
         {
           provide: 'MESSAGE_BUS',
-          useFactory: (client: ClientProxy<any, any>) => {
+          useFactory: (client: RpcClientProxy) => {
             return new MessageBus(client);
           },
           inject: ['MICROSERVICE_CLIENT'],

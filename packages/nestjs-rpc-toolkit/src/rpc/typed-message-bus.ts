@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
+import type { RpcClientProxy } from '../interfaces';
 
 // Base message interface
 export interface RpcMessage<TData = any, TReturns = any> {
@@ -31,14 +32,14 @@ export interface IMessageBus<TRpcMethods = any> {
 
 @Injectable()
 export class MessageBus<TRpcMethods = any> implements IMessageBus<TRpcMethods> {
-  constructor(private readonly client: ClientProxy) {}
+  constructor(private readonly client: RpcClientProxy) {}
 
   async send<TPattern extends keyof TRpcMethods>(
     pattern: TPattern,
     data: TRpcMethods[TPattern] extends { params: infer P } ? P : any
   ): Promise<TRpcMethods[TPattern] extends { returns: infer R } ? R : any> {
     try {
-      const result = await this.client.send(pattern, data).toPromise();
+      const result = await firstValueFrom(this.client.send(pattern, data));
       return result;
     } catch (error) {
       // Re-throw with pattern context for better debugging

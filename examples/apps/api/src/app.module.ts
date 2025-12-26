@@ -11,7 +11,8 @@ import { InProcessClientProxy } from '@zdavison/nestjs-rpc-toolkit';
     ClientsModule.register([
       {
         name: 'MICROSERVICE_CLIENT',
-        customClass: InProcessClientProxy,
+        // Cast to any to support both NestJS 10 and 11 ClientProxy types
+        customClass: InProcessClientProxy as any,
       },
     ]),
     AuthModule,

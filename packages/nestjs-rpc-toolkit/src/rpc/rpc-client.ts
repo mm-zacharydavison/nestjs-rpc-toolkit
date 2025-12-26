@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { RpcCodecRegistry, RpcCodecMetadata, dateCodec } from '../codecs';
 import { InProcessClientProxy } from '../transport/in-process.client';
+import type { RpcClientProxy } from '../interfaces';
 
 /**
  * Function info for an RPC pattern, containing param and return type mappings.
@@ -41,7 +41,7 @@ export interface RpcClientOptions {
  * Check if codec transformation should be skipped.
  * Skips for in-process clients unless NRPCTK_STRICT env var is truthy.
  */
-function shouldSkipCodec(client: ClientProxy): boolean {
+function shouldSkipCodec(client: RpcClientProxy): boolean {
   if (process.env.NRPCTK_STRICT) {
     return false;
   }
@@ -56,7 +56,7 @@ export class RpcClient {
   private skipCodec: boolean;
 
   constructor(
-    private readonly client: ClientProxy,
+    private readonly client: RpcClientProxy,
     options: RpcClientOptions = {},
   ) {
     // Use built-in codecs (Date)
@@ -126,7 +126,7 @@ export class RpcClient {
  * ```
  */
 export function createRpcClientProxy(
-  client: ClientProxy,
+  client: RpcClientProxy,
   options: RpcClientOptions = {},
 ): any {
   const rpcClient = new RpcClient(client, options);

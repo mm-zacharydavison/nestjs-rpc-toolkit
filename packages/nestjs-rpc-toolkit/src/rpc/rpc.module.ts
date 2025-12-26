@@ -1,5 +1,6 @@
 import { Module, DynamicModule, type Type } from '@nestjs/common';
-import { ClientsModule, ClientProxy } from '@nestjs/microservices';
+import { ClientsModule } from '@nestjs/microservices';
+import type { RpcClientProxy } from '../interfaces';
 
 /**
  * Options for RpcModule.forRoot()
@@ -8,8 +9,9 @@ export interface RpcModuleOptions {
   /**
    * The ClientProxy class to use for RPC communication.
    * Typically InProcessClientProxy for monolith deployments.
+   * Uses a flexible type to support both NestJS 10 (non-generic) and NestJS 11 (generic) ClientProxy.
    */
-  clientProxyClass: Type<ClientProxy>;
+  clientProxyClass: Type<RpcClientProxy>;
 
   /**
    * Optional injection token for the client.
@@ -57,7 +59,8 @@ export class RpcModule {
         ClientsModule.register([
           {
             name: clientToken,
-            customClass: options.clientProxyClass,
+            // Cast to any to support both NestJS 10 and 11 ClientProxy types
+            customClass: options.clientProxyClass as any,
           },
         ]),
       ],
