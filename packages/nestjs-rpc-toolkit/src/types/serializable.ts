@@ -9,6 +9,7 @@
 
 /**
  * Converts a type with optional properties (undefined) to use null instead.
+ * Makes all properties required, replacing undefined with null.
  * Useful for preparing data for RPC transport where undefined is not allowed.
  *
  * @example
@@ -22,8 +23,8 @@
  * type UserRpc = UndefinedToNull<UserInput>;
  * // {
  * //   name: string;
- * //   age?: number | null;   // optional properties get | null added
- * //   nickname: string | null;
+ * //   age: number | null;      // required, undefined -> null
+ * //   nickname: string | null; // required, undefined -> null
  * // }
  * ```
  */
@@ -32,11 +33,12 @@ export type UndefinedToNull<T> = T extends undefined
   : T extends object
     ? T extends Array<infer U>
       ? Array<UndefinedToNull<U>>
-      : { [K in keyof T]: UndefinedToNull<T[K]> | (undefined extends T[K] ? null : never) }
+      : { [K in keyof T]-?: UndefinedToNull<Exclude<T[K], undefined>> | (undefined extends T[K] ? null : never) }
     : T;
 
 /**
  * Converts a type with null to use undefined instead.
+ * Makes nullable properties optional.
  * Useful for converting RPC response data back to TypeScript-friendly optionals.
  *
  * @example
@@ -50,8 +52,8 @@ export type UndefinedToNull<T> = T extends undefined
  * type UserLocal = NullToUndefined<UserRpc>;
  * // {
  * //   name: string;
- * //   age: number | undefined;
- * //   nickname: string | undefined;
+ * //   age?: number;     // optional, null -> undefined
+ * //   nickname?: string; // optional, null -> undefined
  * // }
  * ```
  */
@@ -60,7 +62,8 @@ export type NullToUndefined<T> = T extends null
   : T extends object
     ? T extends Array<infer U>
       ? Array<NullToUndefined<U>>
-      : { [K in keyof T]: NullToUndefined<T[K]> }
+      : { [K in keyof T as null extends T[K] ? never : K]: NullToUndefined<T[K]> } &
+        { [K in keyof T as null extends T[K] ? K : never]?: NullToUndefined<Exclude<T[K], null>> }
     : T;
 
 /**
