@@ -12,10 +12,10 @@ export class User {
   lastName: string;
   /** If this users account is currently active */
   isActive: boolean;
-  /** ISO 8601 timestamp when the user was created */
-  createdAt: string;
-  /** ISO 8601 timestamp when the user was last updated */
-  updatedAt: string;
+  /** Timestamp when the user was created */
+  createdAt: Date;
+  /** Timestamp when the user was last updated */
+  updatedAt: Date;
 }
 
 export type UserSelect = {

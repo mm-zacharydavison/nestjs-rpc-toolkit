@@ -40,6 +40,20 @@ export interface LookupUsersResult<Select extends UserSelect = UserSelect> {
 }
 
 /**
+ * A user with their nested profile information.
+ */
+export interface UserWithProfile {
+/** User ID */
+  id: number;
+/** User's email */
+  email: string;
+/** The user's profile (contains nested Date fields) */
+  profile: UserProfile;
+/** When the user account was created */
+  createdAt: string;
+}
+
+/**
  * A User account in our system.
  */
 export interface User {
@@ -53,14 +67,28 @@ export interface User {
   lastName: string;
 /** If this users account is currently active */
   isActive: boolean;
-/** ISO 8601 timestamp when the user was created */
+/** Timestamp when the user was created */
   createdAt: string;
-/** ISO 8601 timestamp when the user was last updated */
+/** Timestamp when the user was last updated */
   updatedAt: string;
 }
 
 export type UserSelect = {
   [K in keyof User]?: boolean;
+}
+
+/**
+ * A user's profile with additional information.
+ */
+export interface UserProfile {
+/** User's biography */
+  bio: string;
+/** User's avatar URL */
+  avatarUrl: string;
+/** When the profile was last updated */
+  lastUpdated: string;
+/** When the user last logged in */
+  lastLoginAt: string;
 }
 
 // Domain interface for user module
@@ -77,4 +105,29 @@ export interface UserDomain {
    * @returns An array of users with only the selected fields populated
    */
   lookupUsers<Select extends UserSelect>(params: { query: LookupUsersQuery<Select> }): Promise<LookupUsersResult<Select>>;
+/**
+   * Get a user with their profile (tests nested Date fields).
+   * @param userId - The ID of the user to fetch
+   * @returns The user with nested profile containing Date fields
+   */
+  getUserWithProfile(params: { userId: number }): Promise<UserWithProfile>;
 }
+
+// Type metadata for automatic codec transformation
+// Maps type names to field -> codec name mappings
+// Used by RPC client for transparent serialization (Date <-> string, etc.)
+export const RpcTypeInfo = {
+  UserProfile: {
+    lastUpdated: 'Date',
+    lastLoginAt: 'Date'
+  },
+  UserWithProfile: {
+    createdAt: 'Date',
+    profile: '@UserProfile'
+  },
+  User: {
+    createdAt: 'Date',
+    updatedAt: 'Date'
+  }
+} as const;
+

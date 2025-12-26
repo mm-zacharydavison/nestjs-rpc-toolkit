@@ -14,3 +14,4 @@ export interface AuthDomain {
   register(params: { registerDto: RegisterDto }): Promise<{ accessToken: string; user: { id: string; email: string; }; }>;
   getUserEmailsById(params: { userIds: number[] }): Promise<string[]>;
 }
+

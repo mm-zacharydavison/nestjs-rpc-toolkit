@@ -2,13 +2,12 @@ import 'reflect-metadata';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { MicroserviceOptions } from '@nestjs/microservices';
-import { InProcessTransportStrategy, InProcessClientProxy } from '@zdavison/nestjs-rpc-toolkit';
+import { InProcessTransportStrategy, InProcessClientProxy, createRpcClientProxy } from '@zdavison/nestjs-rpc-toolkit';
 import { UserService } from '@modules/user/dist/user.service';
 import { AuthService } from '@modules/auth/dist/auth.service';
 import { JwtModule } from '@nestjs/jwt';
-import { IRpcClient } from '@meetsmore/lib-rpc';
+import { IRpcClient, RpcTypeInfo, RpcFunctionInfo } from '@meetsmore/lib-rpc';
 import { ClientsModule, ClientProxy } from '@nestjs/microservices';
-import { RpcClient } from '@zdavison/nestjs-rpc-toolkit/dist/rpc/rpc-client';
 
 describe('RPC modules must be able to be co-located in the same process, and communicate over an in-process bus.', () => {
   let app: INestApplication;
@@ -37,11 +36,9 @@ describe('RPC modules must be able to be co-located in the same process, and com
         {
           provide: 'RPC',
           useFactory: (client: ClientProxy<any, any>) => {
-            const rpcClient = new RpcClient(client);
-            return new Proxy({}, {
-              get: (_target, domain: string) => {
-                return rpcClient.createDomainProxy(domain);
-              }
+            return createRpcClientProxy(client, {
+              typeInfo: RpcTypeInfo,
+              functionInfo: RpcFunctionInfo,
             }) as IRpcClient;
           },
           inject: ['MICROSERVICE_CLIENT'],
@@ -109,8 +106,9 @@ describe('RPC modules must be able to be co-located in the same process, and com
       expect(user.firstName).toBe(createUserDto.firstName);
       expect(user.lastName).toBe(createUserDto.lastName);
       expect(user.isActive).toBe(true);
-      expect(typeof user.createdAt).toBe('string');
-      expect(typeof user.updatedAt).toBe('string');
+      // With codec decoding, dates are converted back to Date objects
+      expect(user.createdAt).toBeInstanceOf(Date);
+      expect(user.updatedAt).toBeInstanceOf(Date);
     });
 
     it('should successfully register a user through auth RPC', async () => {
@@ -126,6 +124,34 @@ describe('RPC modules must be able to be co-located in the same process, and com
       expect(result.user).toBeDefined();
       expect(result.user.email).toBe(registerDto.email);
       expect(result.user.id).toBeDefined();
+    });
+
+    it('should handle nested Date fields in responses', async () => {
+      // First create a user
+      const createUserDto = {
+        email: `nested-dates-${Date.now()}@example.com`,
+        firstName: 'Nested',
+        lastName: 'DateTest',
+        isActive: true,
+      };
+
+      const user = await rpc.user.create({ createUserDto });
+      expect(user.id).toBeDefined();
+
+      // Get user with profile (contains nested Date fields)
+      const userWithProfile = await rpc.user.getUserWithProfile({ userId: user.id });
+
+      expect(userWithProfile).not.toBeNull();
+      expect(userWithProfile!.id).toBe(user.id);
+      expect(userWithProfile!.email).toBe(createUserDto.email);
+
+      // Top-level Date field should be a Date instance
+      expect(userWithProfile!.createdAt).toBeInstanceOf(Date);
+
+      // Nested profile Date fields should also be Date instances
+      expect(userWithProfile!.profile).toBeDefined();
+      expect(userWithProfile!.profile.lastUpdated).toBeInstanceOf(Date);
+      expect(userWithProfile!.profile.lastLoginAt).toBeInstanceOf(Date);
     });
   });
 

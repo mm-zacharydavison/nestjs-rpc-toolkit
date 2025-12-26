@@ -131,6 +131,121 @@ export function nullToUndefined<T>(value: T): NullToUndefined<T> {
 }
 
 // =============================================================================
+// Date Serialization Utilities
+// =============================================================================
+
+/** Type for the generated RpcDateFields metadata */
+export type DateFieldsMetadata = Record<string, readonly string[]>;
+
+/**
+ * Recursively converts all Date instances to ISO strings.
+ * Use this to prepare data for RPC transport.
+ *
+ * @example
+ * ```typescript
+ * const user = { name: 'John', createdAt: new Date() };
+ * const wire = encodeDates(user);
+ * // { name: 'John', createdAt: '2025-01-01T00:00:00.000Z' }
+ * ```
+ */
+export function encodeDates<T>(value: T): T {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString() as unknown as T;
+  }
+
+  if (typeof value !== 'object') {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(item => encodeDates(item)) as unknown as T;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(value)) {
+    result[key] = encodeDates((value as Record<string, unknown>)[key]);
+  }
+  return result as T;
+}
+
+/**
+ * Recursively converts ISO date strings back to Date objects based on metadata.
+ * The metadata specifies which fields should be treated as dates.
+ *
+ * @param value - The value to decode
+ * @param metadata - Map of type names to their date field paths
+ * @param typeName - The type name to look up in metadata (optional for nested calls)
+ *
+ * @example
+ * ```typescript
+ * import { RpcDateFields } from './all.rpc.gen';
+ *
+ * const wire = { name: 'John', createdAt: '2025-01-01T00:00:00.000Z' };
+ * const user = decodeDates(wire, RpcDateFields, 'User');
+ * // { name: 'John', createdAt: Date }
+ * ```
+ */
+export function decodeDates<T>(
+  value: T,
+  metadata: DateFieldsMetadata,
+  typeName?: string
+): T {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value !== 'object') {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(item => decodeDates(item, metadata, typeName)) as unknown as T;
+  }
+
+  // Get date fields for this type
+  const dateFields = typeName ? metadata[typeName] : undefined;
+  const dateFieldSet = dateFields ? new Set(dateFields) : new Set<string>();
+
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(value)) {
+    const val = (value as Record<string, unknown>)[key];
+
+    // Check if this field should be a Date
+    if (dateFieldSet.has(key) && typeof val === 'string') {
+      result[key] = new Date(val);
+    } else if (typeof val === 'object' && val !== null) {
+      // For nested objects, try to infer the type name from the key
+      // This is a heuristic - the key might be the type name in camelCase
+      const nestedTypeName = key.charAt(0).toUpperCase() + key.slice(1);
+      result[key] = decodeDates(val, metadata, metadata[nestedTypeName] ? nestedTypeName : undefined);
+    } else {
+      result[key] = val;
+    }
+  }
+  return result as T;
+}
+
+/**
+ * Creates an encoder function bound to specific metadata.
+ * Useful when you want to encode dates for a specific type.
+ */
+export function createDateEncoder() {
+  return encodeDates;
+}
+
+/**
+ * Creates a decoder function bound to specific metadata.
+ * Useful when you want to decode dates for a specific type.
+ */
+export function createDateDecoder(metadata: DateFieldsMetadata) {
+  return <T>(value: T, typeName?: string) => decodeDates(value, metadata, typeName);
+}
+
+// =============================================================================
 // Serialization Type Definitions
 // =============================================================================
 
@@ -161,6 +276,7 @@ type Equal<X, Y> =
   (<T>() => T extends Y ? 1 : 2) ? true : false;
 
 // Recursively check if a type is serializable (strict JSON only)
+// Note: Date is allowed because the RPC client automatically transforms Date <-> string
 type IsSerializable<T> =
   // Use Equal type check for exact undefined match
   Equal<T, undefined> extends true ? never :
@@ -169,8 +285,8 @@ type IsSerializable<T> =
   Equal<T, null> extends true ? T :
   // Reject functions
   T extends Function ? never :
-  // Reject Date (doesn't round-trip correctly over TCP - becomes string)
-  T extends Date ? never :
+  // Accept Date (will be automatically transformed to/from ISO string by RPC client)
+  T extends Date ? T :
   // Accept primitives
   T extends string | number | boolean ? T :
   // Accept arrays (check elements recursively)
@@ -186,7 +302,8 @@ type IsSerializable<T> =
 
 /**
  * Helper type to check if a type is serializable.
- * Validates strict JSON compatibility (no Date, no undefined, no functions, no symbols).
+ * Validates JSON compatibility (no undefined, no functions, no symbols).
+ * Date is allowed and will be automatically transformed to/from ISO string.
  * Non-serializable types will result in 'never'.
  */
 export type AssertSerializable<T> = IsSerializable<T>;

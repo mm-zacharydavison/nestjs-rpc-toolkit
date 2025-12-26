@@ -4,14 +4,15 @@
 // SERIALIZATION REQUIREMENTS:
 // All @RpcMethod parameters and return types must be JSON-serializable for TCP transport.
 // Avoid: functions, callbacks, Buffer, Map/Set, DOM elements, class instances, undefined
-// Prefer: primitives, plain objects, arrays, null (instead of undefined)
+// Prefer: primitives, plain objects, arrays, null (instead of undefined), Date (auto-converted)
 
-import { UserDomain, CreateUserDto, User, LookupUsersQuery, LookupUsersResult, UserSelect } from './user.rpc.gen';
+import { UserDomain, CreateUserDto, User, LookupUsersQuery, LookupUsersResult, UserSelect, UserWithProfile } from './user.rpc.gen';
 import { AuthDomain, RegisterDto } from './auth.rpc.gen';
 import { MessagingDomain, IncomingMessage, QueuedMessage } from './messaging.rpc.gen';
+import { RpcTypeInfo as UserTypeInfo } from './user.rpc.gen';
 
 // Re-export domain interfaces and types
-export { UserDomain, CreateUserDto, User, LookupUsersQuery, LookupUsersResult, UserSelect } from './user.rpc.gen';
+export { UserDomain, CreateUserDto, User, LookupUsersQuery, LookupUsersResult, UserSelect, UserWithProfile } from './user.rpc.gen';
 export { AuthDomain, RegisterDto } from './auth.rpc.gen';
 export { MessagingDomain, IncomingMessage, QueuedMessage } from './messaging.rpc.gen';
 
@@ -22,6 +23,7 @@ export { MessagingDomain, IncomingMessage, QueuedMessage } from './messaging.rpc
 export type AllRpcMethods = {
   'user.create': { params: { createUserDto: CreateUserDto }; returns: User };
   'user.lookupUsers': { params: { query: LookupUsersQuery<any> }; returns: LookupUsersResult<any> };
+  'user.getUserWithProfile': { params: { userId: number }; returns: UserWithProfile };
   'auth.register': { params: { registerDto: RegisterDto }; returns: { accessToken: string; user: { id: string; email: string; }; } };
   'auth.getUserEmailsById': { params: { userIds: number[] }; returns: string[] };
   'messaging.queueMessage': { params: { message: IncomingMessage }; returns: QueuedMessage };
@@ -36,8 +38,32 @@ export interface IRpcClient {
   messaging: MessagingDomain;
 }
 
+// Merged type metadata from all modules
+export const RpcTypeInfo = {
+  ...UserTypeInfo
+} as const;
+
+// Function metadata for RPC patterns
+// Maps patterns to their parameter and return type names for codec transformation
+export const RpcFunctionInfo = {
+  'user.create': {
+    params: {},
+    returns: 'User'
+  },
+  'user.getUserWithProfile': {
+    params: {},
+    returns: 'UserWithProfile'
+  }
+} as const;
+
+export type RpcFunctionInfoType = typeof RpcFunctionInfo;
+
 // Usage examples:
-// import { TypedRpcClient } from '@modular-monolith/rpc';
+// import { RpcTypeInfo, RpcFunctionInfo } from '@your-org/lib-rpc';
+// import { createRpcClientProxy } from '@zdavison/nestjs-rpc-toolkit';
 //
-// const user = await rpc.user.findOne({ id: 'user123' });
-// const products = await rpc.product.findByOwner({ ownerId: 'user123' });
+// const rpc = createRpcClientProxy(client, {
+//   typeInfo: RpcTypeInfo,
+//   functionInfo: RpcFunctionInfo,
+// });
+// const user = await rpc.user.create({ ... }); // Dates auto-converted

@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User, UserSelect } from './entities/user.entity';
+import { UserWithProfile, UserProfile } from './entities/user-profile.entity';
 import { RpcController, RpcMethod } from '@zdavison/nestjs-rpc-toolkit';
 import { IRpcClient } from '@meetsmore/lib-rpc';
 import { LookupUsersQuery, LookupUsersResult } from './dto/lookup-users.dto';
@@ -27,8 +28,8 @@ export class UserService {
       id: this.idCounter++,
       isActive: true,
       ...createUserDto,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
     this.users.push(user);
 
@@ -58,7 +59,7 @@ export class UserService {
     this.users[userIndex] = {
       ...this.users[userIndex],
       ...updateUserDto,
-      updatedAt: new Date().toISOString(),
+      updatedAt: new Date(),
     };
     return this.users[userIndex];
   }
@@ -99,5 +100,30 @@ export class UserService {
         return result;
       }),
     } as LookupUsersResult<Select>
+  }
+
+  /**
+   * Get a user with their profile (tests nested Date fields).
+   * @param userId - The ID of the user to fetch
+   * @returns The user with nested profile containing Date fields
+   */
+  @RpcMethod()
+  async getUserWithProfile(userId: number): Promise<UserWithProfile | null> {
+    const user = this.users.find(u => u.id === userId);
+    if (!user) return null;
+
+    const profile: UserProfile = {
+      bio: `Bio for ${user.firstName}`,
+      avatarUrl: `https://example.com/avatars/${user.id}.png`,
+      lastUpdated: new Date(),
+      lastLoginAt: new Date(),
+    };
+
+    return {
+      id: user.id,
+      email: user.email,
+      profile,
+      createdAt: user.createdAt,
+    };
   }
 }

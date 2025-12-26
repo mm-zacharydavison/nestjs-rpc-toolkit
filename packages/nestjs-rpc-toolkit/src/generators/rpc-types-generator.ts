@@ -48,6 +48,10 @@ export class RpcTypesGenerator {
   private packageFiles: Map<string, string[]> = new Map();
   private expandedPackages: string[] = [];
   private fileToModuleMap: Map<string, string> = new Map();
+  /** Maps type names to their codec fields (field name -> codec name) */
+  private codecFields: Map<string, Map<string, string>> = new Map();
+  /** Pending nested type checks to resolve after all types are processed */
+  private pendingNestedTypes: Map<string, { propName: string; typeName: string }[]> = new Map();
 
   constructor(private options: GeneratorOptions) {
     // Load configuration
@@ -189,8 +193,34 @@ export class RpcTypesGenerator {
       });
     });
 
+    // Third pass: resolve nested type references (fields that reference types with codec fields)
+    this.resolveNestedTypeReferences();
+
     // Generate the aggregated types file
     this.generateTypesFile();
+  }
+
+  /**
+   * Resolve pending nested type references.
+   * For each type, check if any of its fields reference other types that have codec fields.
+   * If so, add a nested type reference (prefixed with @) to the codec fields.
+   */
+  private resolveNestedTypeReferences(): void {
+    this.pendingNestedTypes.forEach((pendingChecks, typeName) => {
+      pendingChecks.forEach(({ propName, typeName: nestedTypeName }) => {
+        // Check if the referenced type has codec fields
+        if (this.codecFields.has(nestedTypeName)) {
+          // Add a nested type reference to the parent type's codec fields
+          let typeCodecFields = this.codecFields.get(typeName);
+          if (!typeCodecFields) {
+            typeCodecFields = new Map<string, string>();
+            this.codecFields.set(typeName, typeCodecFields);
+          }
+          // Use @ prefix to indicate a nested type reference
+          typeCodecFields.set(propName, `@${nestedTypeName}`);
+        }
+      });
+    });
   }
 
   private scanForRpcMethods(sourceFile: SourceFile): void {
@@ -231,11 +261,53 @@ export class RpcTypesGenerator {
 
   private extractInterface(interfaceDeclaration: any, sourceFile: SourceFile): void {
     const name = interfaceDeclaration.getName();
-    const source = interfaceDeclaration.getText();
     const moduleName = this.getModuleForFile(sourceFile.getFilePath());
     const jsDoc = this.extractJsDoc(interfaceDeclaration);
 
     if (name && this.isRelevantInterface(name) && !this.isInternalType(name)) {
+      // Track codec fields and transform the interface source
+      const typeCodecFields = new Map<string, string>();
+      // Track nested type references (for fields whose type has codec fields)
+      const pendingNestedTypeChecks: { propName: string; typeName: string }[] = [];
+      const properties = interfaceDeclaration.getProperties();
+
+      let source = interfaceDeclaration.getText();
+
+      // Check each property for codec-handled types
+      properties.forEach((prop: any) => {
+        const propName = prop.getName();
+        const typeNode = prop.getTypeNode();
+        if (typeNode) {
+          const propType = typeNode.getText();
+          const codecInfo = this.getCodecForType(propType);
+          if (codecInfo) {
+            typeCodecFields.set(propName, codecInfo.codecName);
+            // Replace the type with wire type in the source
+            const newType = codecInfo.wireType;
+            source = source.replace(
+              new RegExp(`(${propName}\\s*[?]?\\s*:\\s*)${propType.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'),
+              `$1${newType}`
+            );
+          } else {
+            // Check if this is a reference to another type (potential nested type)
+            const extractedType = this.extractMainTypeName(propType);
+            if (extractedType && !this.isBuiltInType(extractedType)) {
+              pendingNestedTypeChecks.push({ propName, typeName: extractedType });
+            }
+          }
+        }
+      });
+
+      // Store codec fields for this type
+      if (typeCodecFields.size > 0) {
+        this.codecFields.set(name, typeCodecFields);
+      }
+
+      // Store pending nested type checks to resolve after all types are processed
+      if (pendingNestedTypeChecks.length > 0) {
+        this.pendingNestedTypes.set(name, pendingNestedTypeChecks);
+      }
+
       this.interfaces.set(name, {
         name,
         source,
@@ -267,6 +339,11 @@ export class RpcTypesGenerator {
         }).join(', ')}>`
       : '';
 
+    // Track codec fields for this type
+    const typeCodecFields = new Map<string, string>();
+    // Track nested type references (for fields whose type has codec fields)
+    const pendingNestedTypeChecks: { propName: string; typeName: string }[] = [];
+
     // Extract DTO classes as interfaces
     const properties = classDeclaration.getProperties()
       .filter((prop: any) => !prop.hasModifier(ts.SyntaxKind.PrivateKeyword))
@@ -283,11 +360,35 @@ export class RpcTypesGenerator {
           // Clean up the type string - remove import paths and keep it simple
           propType = this.cleanTypeString(fullType);
         }
+
+        // Check if this type needs a codec and convert to wire type
+        const codecInfo = this.getCodecForType(propType);
+        if (codecInfo) {
+          typeCodecFields.set(propName, codecInfo.codecName);
+          propType = codecInfo.wireType;
+        } else {
+          // Check if this is a reference to another type (potential nested type)
+          const extractedType = this.extractMainTypeName(propType);
+          if (extractedType && !this.isBuiltInType(extractedType)) {
+            pendingNestedTypeChecks.push({ propName, typeName: extractedType });
+          }
+        }
+
         // Extract JSDoc for the property
         const propJsDoc = this.extractJsDoc(prop);
         const propJsDocStr = propJsDoc ? `${propJsDoc}\n` : '';
         return `${propJsDocStr}  ${propName}: ${propType};`;
       });
+
+    // Store codec fields for this type
+    if (typeCodecFields.size > 0) {
+      this.codecFields.set(name, typeCodecFields);
+    }
+
+    // Store pending nested type checks to resolve after all types are processed
+    if (pendingNestedTypeChecks.length > 0) {
+      this.pendingNestedTypes.set(name, pendingNestedTypeChecks);
+    }
 
     if (properties.length > 0) {
       // Extract JSDoc for the class
@@ -303,6 +404,40 @@ export class RpcTypesGenerator {
         jsDoc: classJsDoc
       });
     }
+  }
+
+  /**
+   * Built-in codec mappings: source type -> { codecName, wireType }
+   * Extensible: add more entries to support additional types.
+   */
+  private readonly codecMappings: Record<string, { codecName: string; wireType: string }> = {
+    'Date': { codecName: 'Date', wireType: 'string' },
+    // Future: 'BigInt': { codecName: 'BigInt', wireType: 'string' },
+    // Future: 'Buffer': { codecName: 'Buffer', wireType: 'string' },
+  };
+
+  /**
+   * Check if a type needs a codec and return codec info.
+   * Returns undefined if the type doesn't need a codec.
+   */
+  private getCodecForType(typeStr: string): { codecName: string; wireType: string } | undefined {
+    const normalized = typeStr.replace(/\s/g, '');
+
+    // Check each known codec type
+    for (const [sourceType, codecInfo] of Object.entries(this.codecMappings)) {
+      // Match exact type or union with null/undefined
+      if (normalized === sourceType ||
+          normalized.includes(`${sourceType}|`) ||
+          normalized.includes(`|${sourceType}`)) {
+        return {
+          codecName: codecInfo.codecName,
+          // Replace the source type with wire type, preserving unions
+          wireType: typeStr.replace(new RegExp(`\\b${sourceType}\\b`, 'g'), codecInfo.wireType),
+        };
+      }
+    }
+
+    return undefined;
   }
 
   private extractTypeAlias(typeAliasDeclaration: any, sourceFile: SourceFile): void {
@@ -611,14 +746,29 @@ export class RpcTypesGenerator {
       }
     });
 
-    // Scan referenced interfaces for additional type dependencies (like enums used in interface properties)
-    referencedInterfaces.forEach(interfaceDef => {
-      this.extractTypeNames(interfaceDef.source).forEach(typeName => {
-        if (!genericTypeParamNames.has(typeName)) {
-          referencedTypes.add(typeName);
+    // Recursively collect type dependencies from referenced interfaces
+    // Keep scanning until no new types are found
+    let prevSize = 0;
+    while (referencedTypes.size !== prevSize) {
+      prevSize = referencedTypes.size;
+
+      // Scan referenced interfaces for additional type dependencies
+      referencedInterfaces.forEach(interfaceDef => {
+        this.extractTypeNames(interfaceDef.source).forEach(typeName => {
+          if (!genericTypeParamNames.has(typeName)) {
+            referencedTypes.add(typeName);
+          }
+        });
+      });
+
+      // Re-check interfaces after scanning for dependencies (for nested types)
+      this.interfaces.forEach(interfaceDef => {
+        if (referencedTypes.has(interfaceDef.name) &&
+            !referencedInterfaces.some(existing => existing.name === interfaceDef.name)) {
+          referencedInterfaces.push(interfaceDef);
         }
       });
-    });
+    }
 
     // Re-check enums after scanning interfaces for dependencies
     this.enums.forEach(enumDef => {
@@ -651,6 +801,9 @@ ${domainMethodDefinitions}
     // Build file content with enums before interfaces
     const typesSection = [moduleEnums, moduleInterfaces].filter(section => section.length > 0).join('\n\n');
 
+    // Generate codec field metadata for types in this module only
+    const moduleCodecFields = this.generateCodecFieldsMetadata(moduleName);
+
     const fileContent = `// Auto-generated RPC types for ${moduleName.charAt(0).toUpperCase() + moduleName.slice(1)} module
 // Do not edit this file manually - it will be overwritten
 //
@@ -660,11 +813,141 @@ ${domainMethodDefinitions}
 ${typesSection}
 
 ${domainInterface}
+${moduleCodecFields}
 `;
 
     // Write to configured output directory
     const outputPath = path.join(this.options.rootDir, this.config.outputDir, `${moduleName}.rpc.gen.ts`);
     fs.writeFileSync(outputPath, fileContent, 'utf8');
+  }
+
+  /** Generate codec metadata for types belonging to this module only */
+  private generateCodecFieldsMetadata(moduleName: string): string {
+    const codecEntries: string[] = [];
+
+    // Only include types that belong to this module
+    this.codecFields.forEach((fields, typeName) => {
+      const interfaceDef = this.interfaces.get(typeName);
+      if (interfaceDef && interfaceDef.module === moduleName && fields.size > 0) {
+        const fieldEntries = Array.from(fields.entries())
+          .map(([fieldName, codecName]) => `    ${fieldName}: '${codecName}'`)
+          .join(',\n');
+        codecEntries.push(`  ${typeName}: {\n${fieldEntries}\n  }`);
+      }
+    });
+
+    if (codecEntries.length === 0) {
+      return '';
+    }
+
+    return `
+// Type metadata for automatic codec transformation
+// Maps type names to field -> codec name mappings
+// Used by RPC client for transparent serialization (Date <-> string, etc.)
+export const RpcTypeInfo = {
+${codecEntries.join(',\n')}
+} as const;
+`;
+  }
+
+  /** Generate function metadata for RPC patterns (params and returns) */
+  private generateRpcFunctionInfo(moduleGroups: Record<string, RpcMethodInfo[]>): string {
+    const entries: string[] = [];
+
+    Object.values(moduleGroups).forEach(methods => {
+      methods.forEach(method => {
+        // Extract param types that have codec fields
+        const paramEntries: string[] = [];
+        method.paramTypes.forEach(param => {
+          const typeName = this.extractMainTypeName(param.type);
+          if (typeName && this.codecFields.has(typeName)) {
+            paramEntries.push(`      ${param.name}: '${typeName}'`);
+          }
+        });
+
+        // Extract return type if it has codec fields
+        const returnType = this.extractMainTypeName(method.returnType);
+        const hasReturnCodec = returnType && this.codecFields.has(returnType);
+
+        // Only include if there are codec fields in params or return
+        if (paramEntries.length > 0 || hasReturnCodec) {
+          const paramsObj = paramEntries.length > 0
+            ? `{\n${paramEntries.join(',\n')}\n    }`
+            : '{}';
+          const returnsValue = hasReturnCodec ? `'${returnType}'` : 'undefined';
+          entries.push(`  '${method.pattern}': {\n    params: ${paramsObj},\n    returns: ${returnsValue}\n  }`);
+        }
+      });
+    });
+
+    if (entries.length === 0) {
+      return '';
+    }
+
+    return `
+// Function metadata for RPC patterns
+// Maps patterns to their parameter and return type names for codec transformation
+export const RpcFunctionInfo = {
+${entries.join(',\n')}
+} as const;
+
+export type RpcFunctionInfoType = typeof RpcFunctionInfo;
+`;
+  }
+
+  /** Extract the main type name from a type string (e.g., "User" from "Promise<User>") */
+  private extractMainTypeName(typeStr: string): string | undefined {
+    // Remove array brackets
+    let type = typeStr.replace(/\[\]/g, '');
+    // Remove Promise wrapper
+    const promiseMatch = type.match(/Promise<(.+)>/);
+    if (promiseMatch) {
+      type = promiseMatch[1];
+    }
+    // Get the first capitalized identifier
+    const match = type.match(/\b([A-Z][a-zA-Z0-9]*)\b/);
+    return match ? match[1] : undefined;
+  }
+
+  /** Generate imports and re-exports for codec fields from module files */
+  private generateCodecFieldReExports(moduleGroups: Record<string, RpcMethodInfo[]>): { imports: string; exports: string } {
+    const modulesWithCodecFields: string[] = [];
+
+    // Check which modules have codec fields
+    Object.keys(moduleGroups).forEach(moduleName => {
+      // Check if any types in this module have codec fields
+      const moduleTypes = Array.from(this.interfaces.entries())
+        .filter(([_, def]) => def.module === moduleName)
+        .map(([name]) => name);
+
+      const hasCodecFields = moduleTypes.some(typeName => this.codecFields.has(typeName));
+      if (hasCodecFields) {
+        modulesWithCodecFields.push(moduleName);
+      }
+    });
+
+    if (modulesWithCodecFields.length === 0) {
+      return { imports: '', exports: '' };
+    }
+
+    // Generate imports with aliases to avoid conflicts
+    const imports = modulesWithCodecFields
+      .map(mod => `import { RpcTypeInfo as ${this.toCamelCase(mod)}TypeInfo } from './${mod}.rpc.gen';`)
+      .join('\n');
+
+    // Generate merged export
+    const mergeEntries = modulesWithCodecFields
+      .map(mod => `  ...${this.toCamelCase(mod)}TypeInfo`)
+      .join(',\n');
+
+    const exports = `
+// Merged type metadata from all modules
+export const RpcTypeInfo = {
+${mergeEntries}
+} as const;
+`;
+
+    return { imports, exports };
   }
 
   private generateMainTypesFile(moduleGroups: Record<string, RpcMethodInfo[]>): void {
@@ -794,15 +1077,22 @@ export interface IRpcClient {
   // No RPC domains available
 }`;
 
+    // Generate RPC function info (params and returns) for codec transformation
+    const rpcFunctionInfo = this.generateRpcFunctionInfo(moduleGroups);
+
+    // Generate codec field imports and re-exports from module files
+    const codecFieldImportsAndExports = this.generateCodecFieldReExports(moduleGroups);
+
     const fileContent = `// Auto-generated RPC types from all modules
 // Do not edit this file manually - it will be overwritten
 //
 // SERIALIZATION REQUIREMENTS:
 // All @RpcMethod parameters and return types must be JSON-serializable for TCP transport.
 // Avoid: functions, callbacks, Buffer, Map/Set, DOM elements, class instances, undefined
-// Prefer: primitives, plain objects, arrays, null (instead of undefined)
+// Prefer: primitives, plain objects, arrays, null (instead of undefined), Date (auto-converted)
 
 ${moduleImports}
+${codecFieldImportsAndExports.imports}
 
 // Re-export domain interfaces and types
 ${moduleReExports}
@@ -813,12 +1103,16 @@ ${commonTypeExports}
 ${allRpcMethodsType}
 
 ${rpcClientInterface}
-
+${codecFieldImportsAndExports.exports}${rpcFunctionInfo}
 // Usage examples:
-// import { TypedRpcClient } from '@modular-monolith/rpc';
+// import { RpcTypeInfo, RpcFunctionInfo } from '@your-org/lib-rpc';
+// import { createRpcClientProxy } from '@zdavison/nestjs-rpc-toolkit';
 //
-// const user = await rpc.user.findOne({ id: 'user123' });
-// const products = await rpc.product.findByOwner({ ownerId: 'user123' });
+// const rpc = createRpcClientProxy(client, {
+//   typeInfo: RpcTypeInfo,
+//   functionInfo: RpcFunctionInfo,
+// });
+// const user = await rpc.user.create({ ... }); // Dates auto-converted
 `;
 
     // Write to configured output directory
@@ -880,11 +1174,17 @@ ${rpcClientInterface}
   private extractTypeNames(typeString: string): Set<string> {
     const typeNames = new Set<string>();
 
+    // Strip JSDoc comments before extracting type names
+    // This prevents matching words in comments (e.g., "User" in "from a user")
+    const withoutJsDoc = typeString
+      .replace(/\/\*\*[\s\S]*?\*\//g, '')  // Remove /** ... */ comments
+      .replace(/\/\/[^\n]*/g, '');          // Remove // comments
+
     // Match type names (letters, numbers, underscore, $)
     // This regex will match identifiers that could be type names
     const typeNameRegex = /\b[A-Z][a-zA-Z0-9_$]*\b/g;
 
-    const matches = typeString.match(typeNameRegex);
+    const matches = withoutJsDoc.match(typeNameRegex);
     if (matches) {
       matches.forEach(match => {
         // Exclude built-in types and common generic types

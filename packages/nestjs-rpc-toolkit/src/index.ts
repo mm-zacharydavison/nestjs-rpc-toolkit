@@ -7,3 +7,4 @@ export * from './rpc/rpc-client';
 export * from './transport';
 export * from './generators/rpc-types-generator';
 export * from './types/serializable';
+export * from './codecs';

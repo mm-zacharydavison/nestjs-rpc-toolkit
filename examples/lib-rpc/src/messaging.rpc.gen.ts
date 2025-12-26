@@ -53,3 +53,4 @@ export interface MessagingDomain {
    */
   getQueueStatus(params: {}): Promise<{ connected: boolean; service: string; queueLength: number; }>;
 }
+
