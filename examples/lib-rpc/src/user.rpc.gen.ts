@@ -50,7 +50,7 @@ export interface UserWithProfile {
 /** The user's profile (contains nested Date fields) */
   profile: UserProfile;
 /** When the user account was created */
-  createdAt: string;
+  createdAt: Date;
 }
 
 /**
@@ -68,9 +68,9 @@ export interface User {
 /** If this users account is currently active */
   isActive: boolean;
 /** Timestamp when the user was created */
-  createdAt: string;
+  createdAt: Date;
 /** Timestamp when the user was last updated */
-  updatedAt: string;
+  updatedAt: Date;
 }
 
 export type UserSelect = {
@@ -86,9 +86,9 @@ export interface UserProfile {
 /** User's avatar URL */
   avatarUrl: string;
 /** When the profile was last updated */
-  lastUpdated: string;
+  lastUpdated: Date;
 /** When the user last logged in */
-  lastLoginAt: string;
+  lastLoginAt: Date;
 }
 
 // Domain interface for user module

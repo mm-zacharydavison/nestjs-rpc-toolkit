@@ -102,6 +102,9 @@ importers:
       '@zdavison/nestjs-rpc-toolkit':
         specifier: workspace:*
         version: link:../../packages/nestjs-rpc-toolkit
+      type-fest:
+        specifier: ^5.0.1
+        version: 5.0.1
     devDependencies:
       '@types/node':
         specifier: ^24.5.1
@@ -185,6 +188,9 @@ importers:
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
+      type-fest:
+        specifier: ^5.0.1
+        version: 5.0.1
     devDependencies:
       '@types/node':
         specifier: ^20.0.0

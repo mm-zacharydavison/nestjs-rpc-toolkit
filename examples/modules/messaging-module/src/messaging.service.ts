@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { RpcController, RpcMethod } from '@zdavison/nestjs-rpc-toolkit';
+import type { JsonValue } from 'type-fest';
 import { IncomingMessage, QueuedMessage } from './entities/message.entity';
 import { QueueMessageDto } from './dto/queue-message.dto';
 
@@ -34,6 +35,21 @@ export class MessagingService {
       connected: true,
       service: 'messaging',
       queueLength: this.queue.length,
+    };
+  }
+
+  /**
+   * Store arbitrary metadata with a message
+   * This demonstrates external type imports (JsonValue from type-fest)
+   * @param messageId - The message identifier
+   * @param metadata - Arbitrary JSON-serializable metadata
+   * @returns The stored metadata
+   */
+  @RpcMethod()
+  async storeMetadata(messageId: string, metadata: JsonValue): Promise<{ messageId: string; metadata: JsonValue }> {
+    return {
+      messageId,
+      metadata,
     };
   }
 }

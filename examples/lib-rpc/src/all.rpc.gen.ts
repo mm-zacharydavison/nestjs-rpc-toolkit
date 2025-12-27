@@ -10,6 +10,8 @@ import { UserDomain, CreateUserDto, User, LookupUsersQuery, LookupUsersResult, U
 import { AuthDomain, RegisterDto } from './auth.rpc.gen';
 import { MessagingDomain, IncomingMessage, QueuedMessage } from './messaging.rpc.gen';
 import { RpcTypeInfo as UserTypeInfo } from './user.rpc.gen';
+import type { JsonValue } from 'type-fest';
+
 
 // Re-export domain interfaces and types
 export { UserDomain, CreateUserDto, User, LookupUsersQuery, LookupUsersResult, UserSelect, UserWithProfile } from './user.rpc.gen';
@@ -28,6 +30,7 @@ export type AllRpcMethods = {
   'auth.getUserEmailsById': { params: { userIds: number[] }; returns: string[] };
   'messaging.queueMessage': { params: { message: IncomingMessage }; returns: QueuedMessage };
   'messaging.getQueueStatus': { params: {}; returns: { connected: boolean; service: string; queueLength: number; } };
+  'messaging.storeMetadata': { params: { messageId: string; metadata: JsonValue }; returns: { messageId: string; metadata: JsonValue; } };
 };
 
 

@@ -3,6 +3,8 @@
 //
 // IMPORTANT: All types must be JSON-serializable for TCP transport when extracted to microservices
 
+import type { JsonValue } from 'type-fest';
+
 // Messaging module types
 /**
  * Source of a message
@@ -52,5 +54,13 @@ export interface MessagingDomain {
    * @returns Information about the message queue
    */
   getQueueStatus(params: {}): Promise<{ connected: boolean; service: string; queueLength: number; }>;
+/**
+   * Store arbitrary metadata with a message
+   * This demonstrates external type imports (JsonValue from type-fest)
+   * @param messageId - The message identifier
+   * @param metadata - Arbitrary JSON-serializable metadata
+   * @returns The stored metadata
+   */
+  storeMetadata(params: { messageId: string; metadata: JsonValue }): Promise<{ messageId: string; metadata: JsonValue; }>;
 }
 

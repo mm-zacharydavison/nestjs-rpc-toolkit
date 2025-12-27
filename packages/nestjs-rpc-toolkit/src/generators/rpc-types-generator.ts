@@ -52,6 +52,8 @@ export class RpcTypesGenerator {
   private codecFields: Map<string, Map<string, string>> = new Map();
   /** Pending nested type checks to resolve after all types are processed */
   private pendingNestedTypes: Map<string, { propName: string; typeName: string }[]> = new Map();
+  /** Maps external type names to their import module paths (e.g., 'JsonValue' -> 'type-fest') */
+  private externalImports: Map<string, string> = new Map();
 
   constructor(private options: GeneratorOptions) {
     // Load configuration
@@ -246,6 +248,9 @@ export class RpcTypesGenerator {
   }
 
   private extractTypesFromFile(sourceFile: SourceFile): void {
+    // First, scan for external package imports (non-relative imports)
+    this.extractExternalImports(sourceFile);
+
     sourceFile.forEachDescendant((node) => {
       if (node.getKind() === ts.SyntaxKind.InterfaceDeclaration) {
         this.extractInterface(node as any, sourceFile);
@@ -257,6 +262,45 @@ export class RpcTypesGenerator {
         this.extractEnum(node as any, sourceFile);
       }
     });
+  }
+
+  /**
+   * Extract external package imports (non-relative) from a source file.
+   * These are imports from npm packages like 'type-fest' that need to be
+   * included in the generated RPC types file.
+   */
+  private extractExternalImports(sourceFile: SourceFile): void {
+    const imports = sourceFile.getImportDeclarations();
+
+    for (const importDecl of imports) {
+      const moduleSpecifier = importDecl.getModuleSpecifierValue();
+
+      // Skip relative imports (start with . or ..)
+      if (moduleSpecifier.startsWith('.') || moduleSpecifier.startsWith('/')) {
+        continue;
+      }
+
+      // Skip NestJS and common Node/framework packages that won't be used in RPC types
+      // These are framework internals that don't expose serializable types
+      if (moduleSpecifier.startsWith('@nestjs') ||
+          moduleSpecifier.startsWith('typeorm') ||
+          moduleSpecifier === 'reflect-metadata' ||
+          moduleSpecifier === 'class-validator' ||
+          moduleSpecifier === 'class-transformer') {
+        continue;
+      }
+
+      // Extract named imports (type imports are particularly important)
+      const namedImports = importDecl.getNamedImports();
+      for (const namedImport of namedImports) {
+        const importName = namedImport.getName();
+        // Track this external type -> package mapping
+        // Only add if not already tracked (first occurrence wins)
+        if (!this.externalImports.has(importName)) {
+          this.externalImports.set(importName, moduleSpecifier);
+        }
+      }
+    }
   }
 
   private extractInterface(interfaceDeclaration: any, sourceFile: SourceFile): void {
@@ -274,6 +318,8 @@ export class RpcTypesGenerator {
       let source = interfaceDeclaration.getText();
 
       // Check each property for codec-handled types
+      // We track codec fields for RpcTypeInfo metadata, but keep original types (e.g., Date)
+      // in the generated interfaces. The codec handles wire format conversion at runtime.
       properties.forEach((prop: any) => {
         const propName = prop.getName();
         const typeNode = prop.getTypeNode();
@@ -281,13 +327,9 @@ export class RpcTypesGenerator {
           const propType = typeNode.getText();
           const codecInfo = this.getCodecForType(propType);
           if (codecInfo) {
+            // Track the codec field for RpcTypeInfo metadata
+            // But DON'T replace the type - keep Date as Date in the interface
             typeCodecFields.set(propName, codecInfo.codecName);
-            // Replace the type with wire type in the source
-            const newType = codecInfo.wireType;
-            source = source.replace(
-              new RegExp(`(${propName}\\s*[?]?\\s*:\\s*)${propType.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'),
-              `$1${newType}`
-            );
           } else {
             // Check if this is a reference to another type (potential nested type)
             const extractedType = this.extractMainTypeName(propType);
@@ -361,11 +403,12 @@ export class RpcTypesGenerator {
           propType = this.cleanTypeString(fullType);
         }
 
-        // Check if this type needs a codec and convert to wire type
+        // Check if this type needs a codec - track for RpcTypeInfo metadata
+        // But keep original type (e.g., Date) in the interface - codec handles wire conversion
         const codecInfo = this.getCodecForType(propType);
         if (codecInfo) {
           typeCodecFields.set(propName, codecInfo.codecName);
-          propType = codecInfo.wireType;
+          // DON'T convert to wire type - keep Date as Date
         } else {
           // Check if this is a reference to another type (potential nested type)
           const extractedType = this.extractMainTypeName(propType);
@@ -804,11 +847,14 @@ ${domainMethodDefinitions}
     // Generate codec field metadata for types in this module only
     const moduleCodecFields = this.generateCodecFieldsMetadata(moduleName);
 
+    // Generate external package imports for types that are used but not defined in the codebase
+    const externalImportsSection = this.generateExternalImports(referencedTypes);
+
     const fileContent = `// Auto-generated RPC types for ${moduleName.charAt(0).toUpperCase() + moduleName.slice(1)} module
 // Do not edit this file manually - it will be overwritten
 //
 // IMPORTANT: All types must be JSON-serializable for TCP transport when extracted to microservices
-
+${externalImportsSection}
 // ${moduleName.charAt(0).toUpperCase() + moduleName.slice(1)} module types
 ${typesSection}
 
@@ -819,6 +865,50 @@ ${moduleCodecFields}
     // Write to configured output directory
     const outputPath = path.join(this.options.rootDir, this.config.outputDir, `${moduleName}.rpc.gen.ts`);
     fs.writeFileSync(outputPath, fileContent, 'utf8');
+  }
+
+  /**
+   * Generate import statements for external package types that are used in the generated file.
+   * Only includes types that are referenced and come from external packages (not defined in codebase).
+   */
+  private generateExternalImports(referencedTypes: Set<string>): string {
+    // Group external types by their package
+    const packageToTypes = new Map<string, string[]>();
+
+    referencedTypes.forEach(typeName => {
+      // Skip if this type is defined in our codebase (interfaces or enums)
+      if (this.interfaces.has(typeName) || this.enums.has(typeName)) {
+        return;
+      }
+
+      // Skip built-in types
+      if (this.isBuiltInType(typeName)) {
+        return;
+      }
+
+      // Check if this is an external import we tracked
+      const packageName = this.externalImports.get(typeName);
+      if (packageName) {
+        if (!packageToTypes.has(packageName)) {
+          packageToTypes.set(packageName, []);
+        }
+        packageToTypes.get(packageName)!.push(typeName);
+      }
+    });
+
+    if (packageToTypes.size === 0) {
+      return '';
+    }
+
+    // Generate import statements, grouped by package
+    const importStatements = Array.from(packageToTypes.entries())
+      .map(([packageName, types]) => {
+        const sortedTypes = types.sort();
+        return `import type { ${sortedTypes.join(', ')} } from '${packageName}';`;
+      })
+      .join('\n');
+
+    return `\n${importStatements}\n`;
   }
 
   /** Generate codec metadata for types belonging to this module only */
@@ -992,7 +1082,7 @@ ${mergeEntries}
       });
 
       const typesList = Array.from(referencedTypes).filter(type =>
-        !this.isBuiltInType(type) && !this.isInternalType(type)
+        !this.isBuiltInType(type) && !this.isInternalType(type) && !this.externalImports.has(type)
       );
 
       const imports = [`${this.toCamelCase(moduleName)}Domain`];
@@ -1042,7 +1132,7 @@ ${mergeEntries}
       });
 
       const typesList = Array.from(referencedTypes).filter(type =>
-        !this.isBuiltInType(type) && !this.isInternalType(type)
+        !this.isBuiltInType(type) && !this.isInternalType(type) && !this.externalImports.has(type)
       );
 
       const exports = [`${this.toCamelCase(moduleName)}Domain`];
@@ -1083,6 +1173,20 @@ export interface IRpcClient {
     // Generate codec field imports and re-exports from module files
     const codecFieldImportsAndExports = this.generateCodecFieldReExports(moduleGroups);
 
+    // Collect all external types referenced across all modules for the main file
+    const allReferencedTypes = new Set<string>();
+    Object.values(moduleGroups).forEach(methods => {
+      methods.forEach(method => {
+        method.paramTypes.forEach(param => {
+          this.extractTypeNames(param.type).forEach(typeName => allReferencedTypes.add(typeName));
+        });
+        this.extractTypeNames(method.returnType).forEach(typeName => allReferencedTypes.add(typeName));
+      });
+    });
+
+    // Generate external imports for the main file
+    const externalImportsSection = this.generateExternalImports(allReferencedTypes);
+
     const fileContent = `// Auto-generated RPC types from all modules
 // Do not edit this file manually - it will be overwritten
 //
@@ -1092,7 +1196,7 @@ export interface IRpcClient {
 // Prefer: primitives, plain objects, arrays, null (instead of undefined), Date (auto-converted)
 
 ${moduleImports}
-${codecFieldImportsAndExports.imports}
+${codecFieldImportsAndExports.imports}${externalImportsSection}
 
 // Re-export domain interfaces and types
 ${moduleReExports}
