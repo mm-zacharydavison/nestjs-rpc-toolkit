@@ -3,16 +3,25 @@ import { InProcessTransportStrategy } from './in-process.transport';
 import { Observable, defer, from, ReplaySubject, distinctUntilChanged } from 'rxjs';
 
 /**
- * InProcessClientProxy for NestJS v11
- * Includes status tracking, event handling, and unwrap functionality
+ * In-process client proxy for RPC communication within a single process.
+ *
+ * This client sends messages directly to an InProcessTransportStrategy instance,
+ * bypassing network overhead entirely.
+ *
+ * @example
+ * ```typescript
+ * const transport = new InProcessTransportStrategy();
+ * const client = new InProcessClientProxy(transport);
+ *
+ * // Or use via RpcModule which handles the wiring:
+ * RpcModule.forRoot({ transport })
+ * ```
  */
 export class InProcessClientProxy extends ClientProxy {
-  private transport = InProcessTransportStrategy.getInstance();
-
   // Required for NestJS v11 compatibility
   protected _status$ = new ReplaySubject<string>(1);
 
-  constructor() {
+  constructor(private readonly transport: InProcessTransportStrategy) {
     super();
     // Initialize with 'connected' status for in-memory transport
     this._status$.next('connected');

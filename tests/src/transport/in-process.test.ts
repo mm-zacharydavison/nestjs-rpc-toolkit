@@ -7,23 +7,21 @@ import { UserService } from '@modules/user/dist/user.service';
 import { AuthService } from '@modules/auth/dist/auth.service';
 import { JwtModule } from '@nestjs/jwt';
 import { IRpcClient, RpcTypeInfo, RpcFunctionInfo } from '@meetsmore/lib-rpc';
-import { ClientsModule, ClientProxy } from '@nestjs/microservices';
+import { ClientProxy } from '@nestjs/microservices';
 
 describe('RPC modules must be able to be co-located in the same process, and communicate over an in-process bus.', () => {
   let app: INestApplication;
   let rpc: IRpcClient;
   let userService: UserService;
   let authService: AuthService;
+  let transport: InProcessTransportStrategy;
 
   beforeAll(async () => {
+    // Create explicit transport instance for this test suite
+    transport = new InProcessTransportStrategy();
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [
-        ClientsModule.register([
-          {
-            name: 'MICROSERVICE_CLIENT',
-            customClass: InProcessClientProxy,
-          },
-        ]),
         JwtModule.register({
           secret: 'test-secret',
           signOptions: { expiresIn: '1d' },
@@ -33,6 +31,17 @@ describe('RPC modules must be able to be co-located in the same process, and com
       providers: [
         UserService,
         AuthService,
+        // Provide the transport for injection
+        {
+          provide: 'IN_PROCESS_TRANSPORT',
+          useValue: transport,
+        },
+        // Create client with explicit transport
+        {
+          provide: 'MICROSERVICE_CLIENT',
+          useFactory: (t: InProcessTransportStrategy) => new InProcessClientProxy(t),
+          inject: ['IN_PROCESS_TRANSPORT'],
+        },
         {
           provide: 'RPC',
           useFactory: (client: ClientProxy<any, any>) => {
@@ -48,9 +57,9 @@ describe('RPC modules must be able to be co-located in the same process, and com
 
     app = moduleFixture.createNestApplication();
 
-    // Connect microservice with InProcessTransportStrategy
+    // Connect microservice with the same transport instance
     app.connectMicroservice<MicroserviceOptions>({
-      strategy: InProcessTransportStrategy.getInstance(),
+      strategy: transport,
     });
 
     await app.startAllMicroservices();
@@ -200,18 +209,23 @@ describe('RPC modules must be able to be co-located in the same process, and com
     });
   });
 
-  describe('InProcessTransportStrategy Singleton', () => {
-    it('should use the same singleton instance across all modules', () => {
-      const instance1 = InProcessTransportStrategy.getInstance();
-      const instance2 = InProcessTransportStrategy.getInstance();
+  describe('InProcessTransportStrategy Instance Isolation', () => {
+    it('should create separate instances with separate handlers', () => {
+      const transport1 = new InProcessTransportStrategy();
+      const transport2 = new InProcessTransportStrategy();
 
-      expect(instance1).toBe(instance2);
+      expect(transport1).not.toBe(transport2);
     });
 
-    it('should register and route messages correctly through the singleton', async () => {
-      const transport = InProcessTransportStrategy.getInstance();
+    it('should allow resetting handlers for test isolation', () => {
+      const testTransport = new InProcessTransportStrategy();
 
-      // The transport should be able to send messages
+      // Reset should clear handlers without error
+      expect(() => testTransport.reset()).not.toThrow();
+    });
+
+    it('should register and route messages correctly through the transport', async () => {
+      // The transport from beforeAll should be able to send messages
       expect(transport.sendMessage).toBeDefined();
       expect(typeof transport.sendMessage).toBe('function');
     });
@@ -219,8 +233,7 @@ describe('RPC modules must be able to be co-located in the same process, and com
 
   describe('Error Handling', () => {
     it('should throw error when calling non-existent RPC pattern', async () => {
-      const transport = InProcessTransportStrategy.getInstance();
-
+      // Use the test suite's transport instance
       await expect(
         transport.sendMessage('nonexistent.method', {})
       ).rejects.toThrow('No handler registered for pattern: nonexistent.method');
@@ -244,13 +257,23 @@ describe('RPC modules must be able to be co-located in the same process, and com
 
   describe('InProcessClientProxy', () => {
     it('should connect successfully without network overhead', async () => {
-      const client = new InProcessClientProxy();
+      const testTransport = new InProcessTransportStrategy();
+      const client = new InProcessClientProxy(testTransport);
       await expect(client.connect()).resolves.toBeUndefined();
     });
 
     it('should close without errors', () => {
-      const client = new InProcessClientProxy();
+      const testTransport = new InProcessTransportStrategy();
+      const client = new InProcessClientProxy(testTransport);
       expect(() => client.close()).not.toThrow();
+    });
+
+    it('should use the provided transport for messaging', async () => {
+      const testTransport = new InProcessTransportStrategy();
+      const client = new InProcessClientProxy(testTransport);
+
+      // unwrap() should return the transport
+      expect(client.unwrap()).toBe(testTransport);
     });
   });
 

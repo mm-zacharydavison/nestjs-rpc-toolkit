@@ -1,20 +1,21 @@
 import { Module } from '@nestjs/common';
-import { ClientsModule } from '@nestjs/microservices';
 import { AuthModule } from '@modules/auth';
 import { UserModule } from '@modules/user';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { InProcessClientProxy } from '@zdavison/nestjs-rpc-toolkit';
+import { RpcModule, InProcessTransportStrategy } from '@zdavison/nestjs-rpc-toolkit';
+
+// Create a shared transport instance for the application
+export const transport = new InProcessTransportStrategy();
 
 @Module({
   imports: [
-    ClientsModule.register([
-      {
-        name: 'MICROSERVICE_CLIENT',
-        // Cast to any to support both NestJS 10 and 11 ClientProxy types
-        customClass: InProcessClientProxy as any,
-      },
-    ]),
+    // RpcModule.forRoot() is global and provides both the transport and RPC client
+    // Cast to any for NestJS 10/11 type compatibility
+    RpcModule.forRoot({
+      transport,
+      clientToken: 'MICROSERVICE_CLIENT',
+    }) as any,
     AuthModule,
     UserModule,
   ],

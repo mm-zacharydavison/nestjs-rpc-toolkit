@@ -3,17 +3,31 @@ import { ClientsModule } from '@nestjs/microservices';
 import type { RpcClientProxy } from '../interfaces';
 import { createRpcClientProxy, type RpcFunctionInfoMap } from './rpc-client';
 import type { RpcCodecMetadata } from '../codecs';
+import { InProcessTransportStrategy } from '../transport/in-process.transport';
+import { InProcessClientProxy } from '../transport/in-process.client';
 
 /**
  * Options for RpcModule.forRoot()
  */
 export interface RpcModuleOptions {
   /**
-   * The ClientProxy class to use for RPC communication.
-   * Typically InProcessClientProxy for monolith deployments.
-   * Uses a flexible type to support both NestJS 10 (non-generic) and NestJS 11 (generic) ClientProxy.
+   * The InProcessTransportStrategy instance to use for RPC communication.
+   * When provided, InProcessClientProxy will be created automatically.
+   * This is the recommended approach for in-process RPC.
+   *
+   * @example
+   * ```typescript
+   * const transport = new InProcessTransportStrategy();
+   * RpcModule.forRoot({ transport })
+   * ```
    */
-  clientProxyClass: Type<RpcClientProxy>;
+  transport?: InProcessTransportStrategy;
+
+  /**
+   * The ClientProxy class to use for RPC communication.
+   * @deprecated Use `transport` instead for in-process RPC.
+   */
+  clientProxyClass?: Type<RpcClientProxy>;
 
   /**
    * Optional injection token for the client.
@@ -47,17 +61,26 @@ export const RPC_CLIENT = 'RPC_CLIENT';
 export const RPC = 'RPC';
 
 /**
+ * Token used to inject the InProcessTransportStrategy.
+ * Useful when you need to connect the transport as a microservice strategy.
+ */
+export const IN_PROCESS_TRANSPORT = 'IN_PROCESS_TRANSPORT';
+
+/**
  * Module that configures RPC communication for a NestJS application.
  *
  * @example
  * ```typescript
- * import { RpcModule, InProcessClientProxy } from '@zdavison/nestjs-rpc-toolkit';
+ * import { RpcModule, InProcessTransportStrategy } from '@zdavison/nestjs-rpc-toolkit';
  * import { RpcTypeInfo, RpcFunctionInfo } from '@your-org/lib-rpc';
+ *
+ * // Recommended: Pass transport instance directly
+ * const transport = new InProcessTransportStrategy();
  *
  * @Module({
  *   imports: [
  *     RpcModule.forRoot({
- *       clientProxyClass: InProcessClientProxy,
+ *       transport,
  *       typeInfo: RpcTypeInfo,
  *       functionInfo: RpcFunctionInfo,
  *     }),
@@ -75,13 +98,53 @@ export const RPC = 'RPC';
 @Module({})
 export class RpcModule {
   /**
-   * Configure the RPC module with a specific ClientProxy implementation.
+   * Configure the RPC module with a specific transport or ClientProxy implementation.
    *
-   * @param options - Configuration options including the ClientProxy class
+   * @param options - Configuration options
    * @returns Dynamic module configuration
    */
   static forRoot(options: RpcModuleOptions): DynamicModule {
     const clientToken = options.clientToken ?? RPC_CLIENT;
+
+    // Recommended: Use transport option for in-process RPC
+    if (options.transport) {
+      return {
+        module: RpcModule,
+        providers: [
+          // Provide the transport for microservice setup
+          {
+            provide: IN_PROCESS_TRANSPORT,
+            useValue: options.transport,
+          },
+          // Create InProcessClientProxy with the transport
+          {
+            provide: clientToken,
+            useFactory: (transport: InProcessTransportStrategy) =>
+              new InProcessClientProxy(transport),
+            inject: [IN_PROCESS_TRANSPORT],
+          },
+          // Provide a configured RPC client proxy with automatic type transformations
+          {
+            provide: RPC,
+            useFactory: (client: RpcClientProxy) =>
+              createRpcClientProxy(client, {
+                typeInfo: options.typeInfo,
+                functionInfo: options.functionInfo,
+              }),
+            inject: [clientToken],
+          },
+        ],
+        exports: [IN_PROCESS_TRANSPORT, clientToken, RPC],
+        global: true,
+      };
+    }
+
+    // Legacy: use clientProxyClass with ClientsModule
+    if (!options.clientProxyClass) {
+      throw new Error(
+        'RpcModule.forRoot requires either transport or clientProxyClass',
+      );
+    }
 
     return {
       module: RpcModule,

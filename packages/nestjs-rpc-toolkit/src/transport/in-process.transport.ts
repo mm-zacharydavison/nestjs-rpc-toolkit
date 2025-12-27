@@ -1,15 +1,25 @@
 import { CustomTransportStrategy, Server, ReadPacket, BaseRpcContext } from '@nestjs/microservices';
 
+/**
+ * In-process transport strategy for RPC communication within a single process.
+ *
+ * Unlike network-based transports, this keeps all communication in-memory,
+ * making it ideal for modular monolith architectures where modules communicate
+ * via RPC but run in the same process.
+ *
+ * @example
+ * ```typescript
+ * // Create a transport instance
+ * const transport = new InProcessTransportStrategy();
+ *
+ * // Use in RpcModule
+ * RpcModule.forRoot({ transport })
+ *
+ * // Use in app bootstrap
+ * app.connectMicroservice({ strategy: transport });
+ * ```
+ */
 export class InProcessTransportStrategy extends Server implements CustomTransportStrategy {
-  private static instance: InProcessTransportStrategy;
-
-  static getInstance(): InProcessTransportStrategy {
-    if (!InProcessTransportStrategy.instance) {
-      InProcessTransportStrategy.instance = new InProcessTransportStrategy();
-    }
-    return InProcessTransportStrategy.instance;
-  }
-
   // Required for NestJS v11 compatibility
   on<EventKey extends string = string, EventCallback extends Function = Function>(
     _event: EventKey,
@@ -30,6 +40,14 @@ export class InProcessTransportStrategy extends Server implements CustomTranspor
 
   close(): void {
     // Clean up if needed
+  }
+
+  /**
+   * Reset the transport by clearing all registered handlers.
+   * Useful for testing scenarios where you want a clean state.
+   */
+  reset(): void {
+    this.messageHandlers.clear();
   }
 
   async handleMessage(

@@ -1,9 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { MicroserviceOptions } from '@nestjs/microservices';
-import { Logger } from '@nestjs/common';
-import { AppModule } from './app.module';
-import { InProcessTransportStrategy } from '@zdavison/nestjs-rpc-toolkit';
+import { AppModule, transport } from './app.module';
 import { LoggingInterceptor } from './interceptors/logging.interceptor';
 
 async function bootstrap() {
@@ -11,8 +9,9 @@ async function bootstrap() {
     logger: ['log', 'error', 'warn', 'debug', 'verbose'],
   });
 
+  // Connect microservice using the same transport instance from the module
   app.connectMicroservice<MicroserviceOptions>({
-    strategy: InProcessTransportStrategy.getInstance(),
+    strategy: transport,
   });
 
   // Add global HTTP request logging
